@@ -83,6 +83,7 @@ void JPEGEncoder::partition()
 {
     blockSize = 8;
     /// YCbCr 4:2:0
+    int* blockIter;
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
     blockWidthLuma = (width+blockSize-1)/blockSize;
@@ -92,47 +93,46 @@ void JPEGEncoder::partition()
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
     block = new int[blockTotal*blockSize*blockSize];
+    blockIter = block;
     /// set data to block from image
     for(int m=0; m<blockHeightLuma; m++){ /// loop all luma blocks
         for(int n=0; n<blockWidthLuma; n++){
-            int blockIndex = (m*blockWidthLuma+n)*blockSize*blockSize;
             for(int i=0; i<blockSize; i++){ /// loop 8x8 block
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     ii = (ii<height) ? ii : (height-1); /// padding
                     ij = (ij<width) ? ij : (width-1);
-                    block[blockIndex+i*blockSize+j] = image[ii*width+ij];
+                    *blockIter = image[ii*width+ij];
+                    blockIter = blockIter+1;
                 }
             }
         }
     }
-    int blockOffset = blockHeightLuma*blockWidthLuma*blockSize*blockSize;
     for(int m=0; m<blockHeightChroma; m++){ /// loop all chroma blocks
         for(int n=0; n<blockWidthChroma; n++){
-            int blockIndex = (m*blockWidthChroma+n)*blockSize*blockSize;
             for(int i=0; i<blockSize; i++){ /// loop 8x8 block
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     ii = (ii<height/2) ? ii : (height/2-1); /// padding
                     ij = (ij<width/2) ? ij : (width/2-1);
-                    block[blockOffset+blockIndex+i*blockSize+j] = image[height*width+ii*width/2+ij];
+                    *blockIter = image[height*width+ii*width/2+ij];
+                    blockIter = blockIter+1;
                 }
             }
         }
     }
-    blockOffset += blockWidthChroma*blockHeightChroma*blockSize*blockSize;
     for(int m=0; m<blockHeightChroma; m++){ /// loop all chroma blocks
         for(int n=0; n<blockWidthChroma; n++){
-            int blockIndex = (m*blockWidthChroma+n)*blockSize*blockSize;
             for(int i=0; i<blockSize; i++){ /// loop 8x8 block
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     ii = (ii<height/2) ? ii : (height/2-1); /// padding
                     ij = (ij<width/2) ? ij : (width/2-1);
-                    block[blockOffset+blockIndex+i*blockSize+j] = image[height*width*5/4+ii*width/2+ij];
+                    *blockIter = image[height*width*5/4+ii*width/2+ij];
+                    blockIter = blockIter+1;
                 }
             }
         }
