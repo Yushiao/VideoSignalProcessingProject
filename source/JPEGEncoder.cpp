@@ -47,7 +47,7 @@ JPEGEncoder::~JPEGEncoder()
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
-    #undef DEBUG
+    //#undef DEBUG
     #ifndef DEBUG
     /// set parameter
     width = w;
@@ -101,9 +101,9 @@ void JPEGEncoder::partition()
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
-                    ii = (ii<height) ? ii : (height-1); /// padding
-                    ij = (ij<width) ? ij : (width-1);
-                    *blockIter = image[ii*width+ij];
+                    //ii = (ii<height) ? ii : (height-1); /// padding
+                    //ij = (ij<width) ? ij : (width-1);
+                    *blockIter = (ii<height && ij<width) ? image[ii*width+ij] : 0;
                     blockIter = blockIter+1;
                 }
             }
@@ -115,9 +115,9 @@ void JPEGEncoder::partition()
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
-                    ii = (ii<height/2) ? ii : (height/2-1); /// padding
-                    ij = (ij<width/2) ? ij : (width/2-1);
-                    *blockIter = image[height*width+ii*width/2+ij];
+                    //ii = (ii<height/2) ? ii : (height/2-1); /// padding
+                    //ij = (ij<width/2) ? ij : (width/2-1);
+                    *blockIter = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 0;
                     blockIter = blockIter+1;
                 }
             }
@@ -129,9 +129,9 @@ void JPEGEncoder::partition()
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
-                    ii = (ii<height/2) ? ii : (height/2-1); /// padding
-                    ij = (ij<width/2) ? ij : (width/2-1);
-                    *blockIter = image[height*width*5/4+ii*width/2+ij];
+                    //ii = (ii<height/2) ? ii : (height/2-1); /// padding
+                    //ij = (ij<width/2) ? ij : (width/2-1);
+                    *blockIter = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 0;
                     blockIter = blockIter+1;
                 }
             }
@@ -142,6 +142,7 @@ void JPEGEncoder::partition()
 void JPEGEncoder::transform()
 {
     /// TODO DCT transform to block[]
+
 }
 
 void JPEGEncoder::quantization()
