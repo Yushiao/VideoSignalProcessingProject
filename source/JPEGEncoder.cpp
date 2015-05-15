@@ -5,6 +5,7 @@
  */
 #include<iostream>
 #include<fstream>
+#include<cmath>
 #include<vector>
 using namespace std;
 
@@ -27,7 +28,7 @@ private:
     int quality;
     unsigned char* image;
 
-    int blockSize;
+    static const int blockSize=8;
     int blockTotal;
     int* block; /// every 8x8 block
 
@@ -81,7 +82,6 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 
 void JPEGEncoder::partition()
 {
-    blockSize = 8;
     /// YCbCr 4:2:0
     int* blockIter;
     int blockWidthLuma, blockHeightLuma;
@@ -103,7 +103,7 @@ void JPEGEncoder::partition()
                     int ij = n*blockSize+j;
                     //ii = (ii<height) ? ii : (height-1); /// padding
                     //ij = (ij<width) ? ij : (width-1);
-                    *blockIter = (ii<height && ij<width) ? image[ii*width+ij] : 0;
+                    *blockIter = (ii<height && ij<width) ? image[ii*width+ij] : 255;
                     blockIter = blockIter+1;
                 }
             }
@@ -117,7 +117,7 @@ void JPEGEncoder::partition()
                     int ij = n*blockSize+j;
                     //ii = (ii<height/2) ? ii : (height/2-1); /// padding
                     //ij = (ij<width/2) ? ij : (width/2-1);
-                    *blockIter = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 0;
+                    *blockIter = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 255;
                     blockIter = blockIter+1;
                 }
             }
@@ -131,18 +131,27 @@ void JPEGEncoder::partition()
                     int ij = n*blockSize+j;
                     //ii = (ii<height/2) ? ii : (height/2-1); /// padding
                     //ij = (ij<width/2) ? ij : (width/2-1);
-                    *blockIter = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 0;
+                    *blockIter = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 255;
                     blockIter = blockIter+1;
                 }
             }
         }
+    }
+    /// level shift 2^(Bits-1)
+    blockIter = block;
+    for(int i=0; i<blockTotal*blockSize*blockSize; i++){
+        *blockIter = *blockIter-128;
+        blockIter = blockIter+1;
     }
 }
 
 void JPEGEncoder::transform()
 {
     /// TODO DCT transform to block[]
+    double* DCTResult = new double[blockSize*blockSize];
+    for(int i=0; i<blockTotal; i++){
 
+    }
 }
 
 void JPEGEncoder::quantization()
