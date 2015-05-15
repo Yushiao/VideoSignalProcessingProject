@@ -38,6 +38,9 @@ JPEGEncoder::JPEGEncoder()
 JPEGEncoder::~JPEGEncoder()
 {
     delete []image;
+    for(int i=0; i<blockTotal; i++){
+        delete []block[i];
+    }
     delete []block;
 }
 
@@ -67,8 +70,8 @@ void JPEGEncoder::partition()
     int blockWidthLuma, blockheightLuma;
     int blockWidthChroma, blockheightChroma;
     blockWidthLuma = (width+blockSize-1)/blockSize;
-    blockheightLuma = (height/2+blockSize-1)/blockSize;
-    blockWidthChroma = (width+blockSize-1)/blockSize;
+    blockheightLuma = (height+blockSize-1)/blockSize;
+    blockWidthChroma = (width/2+blockSize-1)/blockSize;
     blockheightChroma = (height/2+blockSize-1)/blockSize;
     blockTotal = blockWidthLuma*blockheightLuma+2*blockWidthChroma*blockheightChroma;
 
@@ -76,6 +79,7 @@ void JPEGEncoder::partition()
     for(int i=0; i<blockTotal; i++){
         block[i] = new int[blockSize*blockSize];
     }
+    /// TODO set data to block from image
     for(int b=0; b<blockTotal; b++){
         for(int i=0; i<blockSize; i++){
             for(int j=0; j<blockSize; j++){
@@ -83,6 +87,7 @@ void JPEGEncoder::partition()
             }
         }
     }
+
 }
 
 void JPEGEncoder::transform()
