@@ -47,6 +47,7 @@ JPEGEncoder::~JPEGEncoder()
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
+    #undef DEBUG
     #ifndef DEBUG
     /// set parameter
     width = w;
@@ -66,14 +67,11 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
     quality = 100;
     int size = width*height*3/2; /// YCbCr 4:2:0
     image = new unsigned char[size];
-    for(int i=0; i<height; i++){ /// loop 8x8 block
-        for(int j=0; j<width; j++){
-            image[i*width+j] = i*width+j;
-        }
+    for(int i=0; i<size; i++){ /// loop 8x8 block
+        image[i] = i%255;
     }
 
     #endif
-
 
     partition(); /// partition into 8x8 block
     transform(); /// DCT transform
@@ -93,34 +91,52 @@ void JPEGEncoder::partition()
     blockHeightChroma = (height/2+blockSize-1)/blockSize;
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
-    /// padding
-    unsigned char* Y;
-    unsigned char* Cb;
-    unsigned char* Cr;
-    Y = new unsigned char[blockWidthLuma*blockHeightLuma*blockSize*blockSize];
-    Cb = new unsigned char[blockWidthChroma*blockHeightChroma*blockSize*blockSize];
-    Cr = new unsigned char[blockWidthChroma*blockHeightChroma*blockSize*blockSize];
-    for(int i=0; i<blockHeightLuma*blockSize; i++){
-        for(int j=0; j<blockWidthLuma*blockSize; j++){
-            int ii = (i<height) ? i : (height-1);
-            int ij = (j<width) ? j : (width-1);
-            Y[i*blockWidthLuma*blockSize+j] = image[ii*width+ij];
-        }
-    }
-
     block = new int[blockTotal*blockSize*blockSize];
-    /// TODO set data to block from image
+    /// set data to block from image
     for(int m=0; m<blockHeightLuma; m++){ /// loop all luma blocks
         for(int n=0; n<blockWidthLuma; n++){
             int blockIndex = (m*blockWidthLuma+n)*blockSize*blockSize;
             for(int i=0; i<blockSize; i++){ /// loop 8x8 block
                 for(int j=0; j<blockSize; j++){
-                    block[blockIndex+i*blockSize+j] = image[(m*blockSize+i)*width+(n*blockSize+j)];
+                    int ii = m*blockSize+i;
+                    int ij = n*blockSize+j;
+                    ii = (ii<height) ? ii : (height-1); /// padding
+                    ij = (ij<width) ? ij : (width-1);
+                    block[blockIndex+i*blockSize+j] = image[ii*width+ij];
                 }
             }
         }
     }
-
+    int blockOffset = blockHeightLuma*blockWidthLuma*blockSize*blockSize;
+    for(int m=0; m<blockHeightChroma; m++){ /// loop all chroma blocks
+        for(int n=0; n<blockWidthChroma; n++){
+            int blockIndex = (m*blockWidthChroma+n)*blockSize*blockSize;
+            for(int i=0; i<blockSize; i++){ /// loop 8x8 block
+                for(int j=0; j<blockSize; j++){
+                    int ii = m*blockSize+i;
+                    int ij = n*blockSize+j;
+                    ii = (ii<height/2) ? ii : (height/2-1); /// padding
+                    ij = (ij<width/2) ? ij : (width/2-1);
+                    block[blockOffset+blockIndex+i*blockSize+j] = image[height*width+ii*width/2+ij];
+                }
+            }
+        }
+    }
+    blockOffset += blockWidthChroma*blockHeightChroma*blockSize*blockSize;
+    for(int m=0; m<blockHeightChroma; m++){ /// loop all chroma blocks
+        for(int n=0; n<blockWidthChroma; n++){
+            int blockIndex = (m*blockWidthChroma+n)*blockSize*blockSize;
+            for(int i=0; i<blockSize; i++){ /// loop 8x8 block
+                for(int j=0; j<blockSize; j++){
+                    int ii = m*blockSize+i;
+                    int ij = n*blockSize+j;
+                    ii = (ii<height/2) ? ii : (height/2-1); /// padding
+                    ij = (ij<width/2) ? ij : (width/2-1);
+                    block[blockOffset+blockIndex+i*blockSize+j] = image[height*width*5/4+ii*width/2+ij];
+                }
+            }
+        }
+    }
 }
 
 void JPEGEncoder::transform()
@@ -142,5 +158,5 @@ void JPEGEncoder::entropy()
 int main(int argc, char* argv[])
 {
     JPEGEncoder je;
-    je.encode("image\1_1536x1024.yuv", 1536, 1024, 100);
+    je.encode("image\\1_1536x1024.yuv", 1536, 1024, 100);
 }
