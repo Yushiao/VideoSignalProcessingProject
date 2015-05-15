@@ -9,6 +9,7 @@ using namespace std;
 
 class JPEGEncoder{
 public:
+    JPEGEncoder();
     ~JPEGEncoder();
 
     void encode(const char* filename, int w, int h, int q);
@@ -22,11 +23,20 @@ private:
     int height;
     int quality;
     unsigned char* image;
+
+    int* block; /// 8x8 block
+
 };
+
+JPEGEncoder::JPEGEncoder()
+{
+
+}
 
 JPEGEncoder::~JPEGEncoder()
 {
-
+    delete []image;
+    delete []block;
 }
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
@@ -43,6 +53,10 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
     image = new unsigned char[size];
     fread(image, sizeof(char), size, file);
     fclose(file);
+
+    /// partition 8x8 block
+    block = new int[64];
+
 }
 
 void JPEGEncoder::partition()
@@ -68,5 +82,6 @@ void JPEGEncoder::entropy()
 
 int main(int argc, char* argv[])
 {
-    cout << "Hello world!" << endl;
+    JPEGEncoder je;
+    je.encode("image\1_1536x1024.yuv", 1536, 1024, 100);
 }
