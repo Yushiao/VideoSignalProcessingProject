@@ -90,10 +90,6 @@ void JPEGEncoder::partition()
     int* blockIter;
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
-    //blockWidthLuma = (width+blockSize-1)/blockSize;
-    //blockHeightLuma = (height+blockSize-1)/blockSize;
-    //blockWidthChroma = (width/2+blockSize-1)/blockSize;
-    //blockHeightChroma = (height/2+blockSize-1)/blockSize;
     blockWidthLuma = divCeil(width, blockSize);
     blockHeightLuma = divCeil(height, blockSize);
     blockWidthChroma = divCeil(width/2, blockSize);
@@ -158,7 +154,7 @@ void JPEGEncoder::transform()
 
 void JPEGEncoder::quantization()
 {
-    static const int luminance_table[] = {
+    static const int lumaTable[] = {
       16, 11, 10, 16, 24, 40, 51, 61,
       12, 12, 14, 19, 26, 58, 60, 55,
       14, 13, 16, 24, 40, 57, 69, 56,
@@ -169,7 +165,7 @@ void JPEGEncoder::quantization()
       72, 92, 95, 98, 112, 100, 103, 99
     };
 
-    static const int chrominance_table[] = {
+    static const int chromaTable[] = {
       17, 18, 24, 47, 99, 99, 99, 99,
       18, 21, 26, 66, 99, 99, 99, 99,
       24, 26, 56, 99, 99, 99, 99, 99,
@@ -180,12 +176,25 @@ void JPEGEncoder::quantization()
       99, 99, 99, 99, 99, 99, 99, 99
     };
 
+    /// quality quantization table
+    int* lumaTableQuality = new int[blockSize*blockSize];
+    int* chromaTableQuality = new int[blockSize*blockSize];
+    int q = (quality<50) ? (5000/quality) : (200-2*quality);
+    for(int i=0; i<blockSize*blockSize; i++){
+        int lumaTemp = divRound(lumaTable[i]*q, 100);
+        int chromaTemp = divRound(chromaTable[i]*q, 100);
+        if(lumaTemp<=0) lumaTemp=1;
+        if(chromaTemp<=0) chromaTemp=1;
+        lumaTableQuality[i] = lumaTemp;
+        chromaTableQuality[i] = chromaTemp;
+    }
+
     /// TODO quantize all block[]
     for(int b=0; b<blockTotal; b++){
         int blockIndex = b*blockSize*blockSize;
         for(int i=0; i<blockSize; i++){
             for(int j=0; j<blockSize; j++){
-                block[blockIndex+i*blockSize+j] = divRound(block[blockIndex+i*blockSize+j], luminance_table[i*blockSize+j]);
+                block[blockIndex+i*blockSize+j] = divRound(block[blockIndex+i*blockSize+j], lumaTableQuality[i*blockSize+j]);
             }
         }
     }
@@ -215,5 +224,5 @@ int JPEGEncoder::divRound(int dividend, int divisor)
 int main(int argc, char* argv[])
 {
     JPEGEncoder je;
-    je.encode("image\\1_1536x1024.yuv", 1536, 1024, 100);
+    je.encode("image\\1_1536x1024.yuv", 1536, 1024, 20);
 }
