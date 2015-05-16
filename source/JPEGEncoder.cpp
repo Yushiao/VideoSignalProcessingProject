@@ -33,6 +33,10 @@ private:
     int* block; /// every 8x8 block
 
     vector<bool> bitstream; /// entropy coding
+
+    /// sub function
+    int divCeil(int dividend, int divisor);
+    int divRound(int dividend, int divisor);
 };
 
 JPEGEncoder::JPEGEncoder()
@@ -48,7 +52,7 @@ JPEGEncoder::~JPEGEncoder()
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
-    //#undef DEBUG
+    #undef DEBUG
     #ifndef DEBUG
     /// set parameter
     width = w;
@@ -86,10 +90,14 @@ void JPEGEncoder::partition()
     int* blockIter;
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
-    blockWidthLuma = (width+blockSize-1)/blockSize;
-    blockHeightLuma = (height+blockSize-1)/blockSize;
-    blockWidthChroma = (width/2+blockSize-1)/blockSize;
-    blockHeightChroma = (height/2+blockSize-1)/blockSize;
+    //blockWidthLuma = (width+blockSize-1)/blockSize;
+    //blockHeightLuma = (height+blockSize-1)/blockSize;
+    //blockWidthChroma = (width/2+blockSize-1)/blockSize;
+    //blockHeightChroma = (height/2+blockSize-1)/blockSize;
+    blockWidthLuma = divCeil(width, blockSize);
+    blockHeightLuma = divCeil(height, blockSize);
+    blockWidthChroma = divCeil(width/2, blockSize);
+    blockHeightChroma = divCeil(height/2, blockSize);
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
     block = new int[blockTotal*blockSize*blockSize];
@@ -101,8 +109,6 @@ void JPEGEncoder::partition()
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
-                    //ii = (ii<height) ? ii : (height-1); /// padding
-                    //ij = (ij<width) ? ij : (width-1);
                     *blockIter = (ii<height && ij<width) ? image[ii*width+ij] : 255;
                     blockIter = blockIter+1;
                 }
@@ -115,8 +121,6 @@ void JPEGEncoder::partition()
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
-                    //ii = (ii<height/2) ? ii : (height/2-1); /// padding
-                    //ij = (ij<width/2) ? ij : (width/2-1);
                     *blockIter = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 255;
                     blockIter = blockIter+1;
                 }
@@ -129,8 +133,6 @@ void JPEGEncoder::partition()
                 for(int j=0; j<blockSize; j++){
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
-                    //ii = (ii<height/2) ? ii : (height/2-1); /// padding
-                    //ij = (ij<width/2) ? ij : (width/2-1);
                     *blockIter = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 255;
                     blockIter = blockIter+1;
                 }
@@ -149,14 +151,44 @@ void JPEGEncoder::transform()
 {
     /// TODO DCT transform to block[]
     double* DCTResult = new double[blockSize*blockSize];
-    for(int i=0; i<blockTotal; i++){
+    for(int b=0; b<blockTotal; b++){
 
     }
 }
 
 void JPEGEncoder::quantization()
 {
+    static const int luminance_table[] = {
+      16, 11, 10, 16, 24, 40, 51, 61,
+      12, 12, 14, 19, 26, 58, 60, 55,
+      14, 13, 16, 24, 40, 57, 69, 56,
+      14, 17, 22, 29, 51, 87, 80, 62,
+      18, 22, 37, 56, 68, 109, 103, 77,
+      24, 35, 55, 64, 81, 104, 113, 92,
+      49, 64, 78, 87, 103, 121, 120, 101,
+      72, 92, 95, 98, 112, 100, 103, 99
+    };
+
+    static const int chrominance_table[] = {
+      17, 18, 24, 47, 99, 99, 99, 99,
+      18, 21, 26, 66, 99, 99, 99, 99,
+      24, 26, 56, 99, 99, 99, 99, 99,
+      47, 66, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99
+    };
+
     /// TODO quantize all block[]
+    for(int b=0; b<blockTotal; b++){
+        int blockIndex = b*blockSize*blockSize;
+        for(int i=0; i<blockSize; i++){
+            for(int j=0; j<blockSize; j++){
+                block[blockIndex+i*blockSize+j] = divRound(block[blockIndex+i*blockSize+j], luminance_table[i*blockSize+j]);
+            }
+        }
+    }
 }
 
 void JPEGEncoder::entropy()
@@ -164,6 +196,21 @@ void JPEGEncoder::entropy()
     /// TODO encode block to bitstream
 }
 
+int JPEGEncoder::divCeil(int dividend, int divisor)
+{
+    /// dividend and divisor must be positive
+    return ((dividend-1) / divisor) + 1;
+}
+
+int JPEGEncoder::divRound(int dividend, int divisor)
+{
+    /// divisor must be positive
+    if(dividend < 0){
+        return -1*(-1*dividend + (divisor/2))/divisor;
+    }else{
+        return (dividend + (divisor/2))/divisor;
+    }
+}
 
 int main(int argc, char* argv[])
 {
