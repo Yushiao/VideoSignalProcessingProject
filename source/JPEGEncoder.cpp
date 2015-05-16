@@ -30,6 +30,8 @@ private:
 
     static const int blockSize=8;
     int blockTotal;
+    int blockLumaTotal;
+    int blockChromaTotal;
     int* block; /// every 8x8 block
 
     vector<bool> bitstream; /// entropy coding
@@ -52,7 +54,7 @@ JPEGEncoder::~JPEGEncoder()
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
-    #undef DEBUG
+    //#undef DEBUG
     #ifndef DEBUG
     /// set parameter
     width = w;
@@ -69,7 +71,7 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
     #else
     width = 12;
     height = 10;
-    quality = 100;
+    quality = 90;
     int size = width*height*3/2; /// YCbCr 4:2:0
     image = new unsigned char[size];
     for(int i=0; i<size; i++){ /// loop 8x8 block
@@ -94,6 +96,8 @@ void JPEGEncoder::partition()
     blockHeightLuma = divCeil(height, blockSize);
     blockWidthChroma = divCeil(width/2, blockSize);
     blockHeightChroma = divCeil(height/2, blockSize);
+    blockLumaTotal = blockWidthLuma*blockHeightLuma;
+    blockChromaTotal = 2*blockWidthChroma*blockHeightChroma;
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
     block = new int[blockTotal*blockSize*blockSize];
@@ -145,7 +149,7 @@ void JPEGEncoder::partition()
 
 void JPEGEncoder::transform()
 {
-    /// TODO DCT transform to block[]
+    /// TODO DCT transform to all blocks
     double* DCTResult = new double[blockSize*blockSize];
     for(int b=0; b<blockTotal; b++){
 
@@ -189,13 +193,17 @@ void JPEGEncoder::quantization()
         chromaTableQuality[i] = chromaTemp;
     }
 
-    /// TODO quantize all block[]
-    for(int b=0; b<blockTotal; b++){
+    /// TODO quantize all blocks
+    for(int b=0; b<blockLumaTotal; b++){
         int blockIndex = b*blockSize*blockSize;
-        for(int i=0; i<blockSize; i++){
-            for(int j=0; j<blockSize; j++){
-                block[blockIndex+i*blockSize+j] = divRound(block[blockIndex+i*blockSize+j], lumaTableQuality[i*blockSize+j]);
-            }
+        for(int i=0; i<blockSize*blockSize; i++){
+            block[blockIndex+i] = divRound(block[blockIndex+i], lumaTableQuality[i]);
+        }
+    }
+    for(int b=0; b<blockChromaTotal; b++){
+        int blockIndex = blockLumaTotal + b*blockSize*blockSize;
+        for(int i=0; i<blockSize*blockSize; i++){
+            block[blockIndex+i] = divRound(block[blockIndex+i], chromaTableQuality[i]);
         }
     }
 }
