@@ -55,7 +55,7 @@ JPEGEncoder::~JPEGEncoder()
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
-    #undef DEBUG
+    //#undef DEBUG
     #ifndef DEBUG
     /// set parameter
     width = w;
@@ -83,7 +83,8 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 
     partition(); /// partition into 8x8 block
     transform(); /// DCT transform
-    quantization();
+    //quantization();
+    zigzag();
     entropy();
 }
 
@@ -151,10 +152,12 @@ void JPEGEncoder::partition()
 void JPEGEncoder::transform()
 {
     /// TODO DCT transform to all blocks
-    double* DCTResult = new double[blockSize*blockSize];
+    double* result = new double[blockSize*blockSize];
     for(int b=0; b<blockTotal; b++){
 
     }
+
+    delete []result;
 }
 
 void JPEGEncoder::quantization()
@@ -211,7 +214,45 @@ void JPEGEncoder::quantization()
 
 void JPEGEncoder::zigzag()
 {
-    /// TODO reorder block to zigzag form
+    /// reorder block to zigzag form
+    int* z = new int[blockSize*blockSize];
+    int* ziter;
+    for(int b=0; b<blockTotal; b++){
+        int blockIndex = b*blockSize*blockSize;
+        ziter = z;
+        for(int s=0; s<2*blockSize-1; s++){
+            if(s<blockSize){ /// upper-left block
+                if(s%2==0){
+                    for(int i=s; i>=0; i--){
+                        *ziter = block[blockIndex+i*blockSize+s-i];
+                        ziter++;
+                    }
+                }else{
+                    for(int i=0; i<=s; i++){
+                        *ziter = block[blockIndex+i*blockSize+s-i];
+                        ziter++;
+                    }
+                }
+            }else{ /// lower-right block
+                if(s%2==0){
+                    for(int i=blockSize-1; s-i<blockSize; i--){
+                        *ziter = block[blockIndex+i*blockSize+s-i];
+                        ziter++;
+                    }
+                }else{
+                    for(int i=s-blockSize+1; i<blockSize; i++){
+                        *ziter = block[blockIndex+i*blockSize+s-i];
+                        ziter++;
+                    }
+                }
+            }
+        }
+        for(int i=0; i<blockSize*blockSize; i++){
+            block[blockIndex+i] = z[i];
+        }
+    }
+
+    delete []z;
 }
 
 void JPEGEncoder::entropy()
@@ -238,5 +279,5 @@ int JPEGEncoder::divRound(int dividend, int divisor)
 int main(int argc, char* argv[])
 {
     JPEGEncoder je;
-    je.encode("image\\1_1536x1024.yuv", 1536, 1024, 20);
+    je.encode("image\\1_1536x1024.yuv", 1536, 1024, 90);
 }
