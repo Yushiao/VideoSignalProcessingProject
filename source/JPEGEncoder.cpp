@@ -21,6 +21,7 @@ public:
     void partition();
     void transform();
     void quantization();
+    void zigzag();
     void entropy();
 private:
     int width;
@@ -54,7 +55,7 @@ JPEGEncoder::~JPEGEncoder()
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
-    //#undef DEBUG
+    #undef DEBUG
     #ifndef DEBUG
     /// set parameter
     width = w;
@@ -193,7 +194,7 @@ void JPEGEncoder::quantization()
         chromaTableQuality[i] = chromaTemp;
     }
 
-    /// TODO quantize all blocks
+    /// quantize all blocks
     for(int b=0; b<blockLumaTotal; b++){
         int blockIndex = b*blockSize*blockSize;
         for(int i=0; i<blockSize*blockSize; i++){
@@ -206,6 +207,11 @@ void JPEGEncoder::quantization()
             block[blockIndex+i] = divRound(block[blockIndex+i], chromaTableQuality[i]);
         }
     }
+}
+
+void JPEGEncoder::zigzag()
+{
+    /// TODO reorder block to zigzag form
 }
 
 void JPEGEncoder::entropy()
