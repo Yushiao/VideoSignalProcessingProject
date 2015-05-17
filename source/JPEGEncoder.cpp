@@ -70,20 +70,23 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
     fread(image, sizeof(char), size, file);
     fclose(file);
     #else
-    width = 12;
-    height = 10;
+    width = 8;
+    height = 8;
     quality = 90;
     int size = width*height*3/2; /// YCbCr 4:2:0
     image = new unsigned char[size];
     for(int i=0; i<size; i++){ /// loop 8x8 block
-        image[i] = i%255;
+        image[i] = 128;
     }
-
+    image[0]=57+128;
+    image[19]=3+128;
+    image[24]=2+128;
+    image[58]=255;
     #endif
 
     partition(); /// partition into 8x8 block
     transform(); /// DCT transform
-    //quantization();
+    quantization();
     zigzag();
     entropy();
 }
@@ -112,7 +115,7 @@ void JPEGEncoder::partition()
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     *blockIter = (ii<height && ij<width) ? image[ii*width+ij] : 255;
-                    blockIter = blockIter+1;
+                    blockIter++;
                 }
             }
         }
@@ -124,7 +127,7 @@ void JPEGEncoder::partition()
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     *blockIter = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 255;
-                    blockIter = blockIter+1;
+                    blockIter++;
                 }
             }
         }
@@ -136,7 +139,7 @@ void JPEGEncoder::partition()
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     *blockIter = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 255;
-                    blockIter = blockIter+1;
+                    blockIter++;
                 }
             }
         }
@@ -145,7 +148,7 @@ void JPEGEncoder::partition()
     blockIter = block;
     for(int i=0; i<blockTotal*blockSize*blockSize; i++){
         *blockIter = *blockIter-128;
-        blockIter = blockIter+1;
+        blockIter++;
     }
 }
 
@@ -210,6 +213,8 @@ void JPEGEncoder::quantization()
             block[blockIndex+i] = divRound(block[blockIndex+i], chromaTableQuality[i]);
         }
     }
+    delete []lumaTableQuality;
+    delete []chromaTableQuality;
 }
 
 void JPEGEncoder::zigzag()
@@ -257,7 +262,72 @@ void JPEGEncoder::zigzag()
 
 void JPEGEncoder::entropy()
 {
-    /// TODO encode block to bitstream
+    int blockElement = blockSize * blockSize;
+    int* run = new int[blockElement];
+    int* number = new int[blockElement];
+    int* runIter;
+    int* numberIter;
+    int blockIndex;
+    int blockEnd;
+    int runCount;
+    for(int b=0; b<1; b++){ //\fixme for test
+        runIter = run;
+        numberIter = number;
+        blockIndex = b*blockElement;
+        blockEnd = 0;
+        runCount = 0;
+        /// find the last element
+        for(int i=blockElement-1; i>=0; i--){
+            if(block[blockIndex+i]!=0){
+                blockEnd = i;
+                break;
+            }
+        }
+        /// run length coding
+        *runIter = 0;
+        runIter++;
+        *numberIter = block[blockIndex];
+        numberIter++;
+        for(int i=1; i<=blockEnd; i++){
+            if(block[blockIndex+i]!=0){
+                *runIter = runCount;
+                runIter++;
+                *numberIter = block[blockIndex+i];
+                numberIter++;
+                runCount=0;
+                continue;
+            }
+            runCount++;
+            /// 16 zeros (ZRL)
+            if(runCount>=16){
+                *runIter = 15;
+                runIter++;
+                *numberIter = 0;
+                numberIter++;
+                runCount = 0;
+            }
+        }
+        /// end of block (EOB)
+        *runIter = 0;
+        *numberIter = 0;
+        runIter = run;
+        numberIter = number;
+        /// encode block to bitstream
+        /// for DC value, use DPCM
+        *numberIter = (b==0) ? *numberIter : *numberIter-block[blockIndex-blockElement];
+        /// TODO encode DC to bitstream
+
+        runIter++;
+        numberIter++;
+        /// for AC value
+        while(*runIter!=0 || *numberIter!=0){
+            /// TODO encode AC to bitstream
+
+            runIter++;
+            numberIter++;
+        }
+    }
+    cout << endl;
 }
 
 int JPEGEncoder::divCeil(int dividend, int divisor)
