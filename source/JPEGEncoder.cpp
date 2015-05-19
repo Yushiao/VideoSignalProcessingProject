@@ -40,6 +40,8 @@ private:
     /// sub function
     int divCeil(int dividend, int divisor);
     int divRound(int dividend, int divisor);
+    int numberOfBits(int number);
+    void pushBits(int length, int number);
 };
 
 JPEGEncoder::JPEGEncoder()
@@ -262,6 +264,11 @@ void JPEGEncoder::zigzag()
 
 void JPEGEncoder::entropy()
 {
+    static const int lumaDCCodeLengthTable[] = {2, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9};
+    static const int lumaDCCodeWordTable[] = {0, 2, 3, 4, 5, 6, 14, 30, 62, 126, 254, 510};
+    static const int chromaDCCodeLengthTable[] = {2, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    static const int chromaDCCodeWordTable[] = {0, 1, 2, 6, 14, 30, 62, 126, 254, 510, 1022, 2046};
+
     int blockElement = blockSize * blockSize;
     int* run = new int[blockElement];
     int* number = new int[blockElement];
@@ -270,7 +277,7 @@ void JPEGEncoder::entropy()
     int blockIndex;
     int blockEnd;
     int runCount;
-    for(int b=0; b<1; b++){ //\fixme for test
+    for(int b=0; b<1; b++){ // FIXME for test
         runIter = run;
         numberIter = number;
         blockIndex = b*blockElement;
@@ -310,13 +317,22 @@ void JPEGEncoder::entropy()
         /// end of block (EOB)
         *runIter = 0;
         *numberIter = 0;
+        /// encode block to bitstream
         runIter = run;
         numberIter = number;
-        /// encode block to bitstream
         /// for DC value, use DPCM
         *numberIter = (b==0) ? *numberIter : *numberIter-block[blockIndex-blockElement];
-        /// TODO encode DC to bitstream
-
+        /// encode DC to bitstream
+        int category = *numberIter;
+        category = (category<0) ? -category : category;
+        category = numberOfBits(category);
+        if(category>11) cout << "ERROR DC too large" << endl;
+        if(b < blockLumaTotal){ /// luma
+            pushBits(lumaDCCodeLengthTable[category], lumaDCCodeWordTable[category]);
+        }else{ /// chroma
+            pushBits(chromaDCCodeLengthTable[category], chromaDCCodeWordTable[category]);
+        }
+        pushBits(category, *numberIter);
         runIter++;
         numberIter++;
         /// for AC value
@@ -344,6 +360,32 @@ int JPEGEncoder::divRound(int dividend, int divisor)
     }else{
         return (dividend + (divisor/2))/divisor;
     }
+}
+
+int JPEGEncoder::numberOfBits(int number)
+{
+    int result = 0;
+    while(number !=0){
+        number = number >> 1;
+        result++;
+    }
+    return result;
+}
+
+void JPEGEncoder::pushBits(int length, int number)
+{
+    int bit = 1 << length;
+    bool b;
+    if(number < 0) number = ~(-number);
+    for(int i=0; i<length; i++){
+        bit = bit >> 1;
+        b = number&bit;
+        bitstream.push_back(b);
+    }
+    for(int i=0; i<bitstream.size(); i++){
+        cout << bitstream[i];
+    }
+    cout << endl;
 }
 
 int main(int argc, char* argv[])
