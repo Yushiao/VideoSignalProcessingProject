@@ -12,6 +12,7 @@ using namespace std;
 #define DEBUG
 
 class JPEGEncoder{
+
 public:
     JPEGEncoder();
     ~JPEGEncoder();
@@ -23,6 +24,7 @@ public:
     void quantization();
     void zigzag();
     void entropy();
+
 private:
     int width;
     int height;
@@ -157,13 +159,42 @@ void JPEGEncoder::partition()
 void JPEGEncoder::transform()
 {
     /// TODO DCT transform to all blocks
-    double* result = new double[blockSize*blockSize];
-    int c;
-    for(int b=0; b<blockTotal; b++){
-        printf("%d ", block[b]);
-        c++;
-    }
-    printf("\n%d\n",c);
+    //parameter
+	const double PI=3.14159265359;
+	const double w0 = sqrt(1.0/blockSize);
+	const double w1 = sqrt(2.0/blockSize);
+
+    double* result = new double[blockTotal*blockSize*blockSize];
+	double dct_matrix[blockSize][blockSize]={0}; //dct transform martix : dimention =(blockSize*blockSize)
+
+	for(int i=0; i<blockSize; i++){
+		for(int j=0; j<blockSize; j++){
+			dct_matrix[i][j] = cos((2*j+1)*i*PI/blockSize/2);
+		}
+	}
+
+//	for(int i=0; i<2*blockSize; i++){
+//        printf("block[%d]: %d\n",i,block[i]);
+//	}
+
+	for(int i=0; i<blockTotal*blockSize*blockSize; i++){
+		for(int j=0; j<blockSize; j++){
+			//i!=8n ex:0,8,16,...
+			if(i%blockSize){
+				result[i] += block[i/blockSize+j]*w1*dct_matrix[i%blockSize][j];
+			}
+			//i==8n ex:0,8,16,...
+			else{
+				result[i] += block[i/blockSize+j]*w0*dct_matrix[i%blockSize][j];
+			}
+		}
+	}
+
+	for(int i=0; i<blockTotal*blockSize*blockSize; i++){
+        block[i] = round(result[i]);
+//        printf("result[%d]: %d\n",i,block[i]);
+//        printf("result[%d]: %f\n",i,result[i]);
+	}
 
     delete []result;
 }
