@@ -99,23 +99,12 @@ void JPEGEncoder::partition()
     int* blockIter;
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
-<<<<<<< HEAD
-    // (12+8-1)/8=2
-    blockWidthLuma = (width+blockSize-1)/blockSize;
-    // (10+8-1)/8=2
-    blockHeightLuma = (height+blockSize-1)/blockSize;
-    // 6+8-1/8=1
-    blockWidthChroma = (width/2+blockSize-1)/blockSize;
-    // 5+8-1/8=1
-    blockHeightChroma = (height/2+blockSize-1)/blockSize;
-=======
     blockWidthLuma = divCeil(width, blockSize);
     blockHeightLuma = divCeil(height, blockSize);
     blockWidthChroma = divCeil(width/2, blockSize);
     blockHeightChroma = divCeil(height/2, blockSize);
     blockLumaTotal = blockWidthLuma*blockHeightLuma;
     blockChromaTotal = 2*blockWidthChroma*blockHeightChroma;
->>>>>>> origin/master
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
     block = new int[blockTotal*blockSize*blockSize];
@@ -167,23 +156,15 @@ void JPEGEncoder::partition()
 
 void JPEGEncoder::transform()
 {
-<<<<<<< HEAD
-    /// TODO DCT transform to block[]
-    int c=0;
-    for(int i=0; i<blockTotal*blockSize*blockSize; i++){
-        printf("%d ",block[i]);
-        c++;
-    }
-    printf("\n%d\n",c);
-=======
     /// TODO DCT transform to all blocks
     double* result = new double[blockSize*blockSize];
     for(int b=0; b<blockTotal; b++){
-
+        printf("%d ", block[b]);
+        c++;
     }
+    printf("\n%d\n",c);
 
     delete []result;
->>>>>>> origin/master
 }
 
 void JPEGEncoder::quantization()
