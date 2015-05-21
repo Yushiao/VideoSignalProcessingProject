@@ -86,9 +86,13 @@ void JPEGEncoder::partition()
     int* blockIter;
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
+    // (12+8-1)/8=2
     blockWidthLuma = (width+blockSize-1)/blockSize;
+    // (10+8-1)/8=2
     blockHeightLuma = (height+blockSize-1)/blockSize;
+    // 6+8-1/8=1
     blockWidthChroma = (width/2+blockSize-1)/blockSize;
+    // 5+8-1/8=1
     blockHeightChroma = (height/2+blockSize-1)/blockSize;
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
@@ -142,7 +146,12 @@ void JPEGEncoder::partition()
 void JPEGEncoder::transform()
 {
     /// TODO DCT transform to block[]
-
+    int c=0;
+    for(int i=0; i<blockTotal*blockSize*blockSize; i++){
+        printf("%d ",block[i]);
+        c++;
+    }
+    printf("\n%d\n",c);
 }
 
 void JPEGEncoder::quantization()
