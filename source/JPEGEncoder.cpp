@@ -158,6 +158,7 @@ void JPEGEncoder::transform()
 {
     /// TODO DCT transform to all blocks
     double* result = new double[blockSize*blockSize];
+    int c;
     for(int b=0; b<blockTotal; b++){
         printf("%d ", block[b]);
         c++;
