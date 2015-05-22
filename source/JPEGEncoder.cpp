@@ -115,7 +115,10 @@ void JPEGEncoder::initial(const char* filename, int w, int h, int q)
     for(int i=0; i<64; i++){
         image[i] = test[i];
     }*/
+}
 
+void JPEGEncoder::partition()
+{
     /// YCbCr 4:2:0
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
@@ -128,10 +131,6 @@ void JPEGEncoder::initial(const char* filename, int w, int h, int q)
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
     block = new int[blockTotal*blockSize*blockSize];
-}
-
-void JPEGEncoder::partition()
-{
     int* blockIter = block;
     /// set data to block from image
     for(int m=0; m<blockHeightLuma; m++){ /// loop all luma blocks
