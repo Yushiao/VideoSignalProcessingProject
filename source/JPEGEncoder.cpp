@@ -7,12 +7,11 @@
 #include<fstream>
 #include<cmath>
 #include<vector>
+#include<string>
+#include<sstream>
 using namespace std;
 
-#define DEBUG
-
 class JPEGEncoder{
-
 public:
     JPEGEncoder();
     ~JPEGEncoder();
@@ -25,7 +24,9 @@ public:
     void zigzag();
     void entropy();
 
+    void write();
 private:
+    string name;
     int width;
     int height;
     int quality;
@@ -59,9 +60,10 @@ JPEGEncoder::~JPEGEncoder()
 
 void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
-    #undef DEBUG
-    #ifndef DEBUG
     /// set parameter
+    name = filename;
+    name = name.substr(name.rfind('\\')+1);
+    name = name.substr(0, name.rfind('.'));
     width = w;
     height = h;
     quality = (q<1) ? 1 : /// quality between 1 and 100
@@ -73,26 +75,14 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
     image = new unsigned char[size];
     fread(image, sizeof(char), size, file);
     fclose(file);
-    #else
-    width = 8;
-    height = 8;
-    quality = 90;
-    int size = width*height*3/2; /// YCbCr 4:2:0
-    image = new unsigned char[size];
-    for(int i=0; i<size; i++){ /// loop 8x8 block
-        image[i] = 128;
-    }
-    image[0]=57+128;
-    image[19]=3+128;
-    image[24]=2+128;
-    image[58]=255;
-    #endif
 
     partition(); /// partition into 8x8 block
     transform(); /// DCT transform
     quantization();
     zigzag();
     entropy();
+    
+    write();
 }
 
 void JPEGEncoder::partition()
@@ -158,8 +148,8 @@ void JPEGEncoder::partition()
 
 void JPEGEncoder::transform()
 {
-    /// TODO DCT transform to all blocks
-    //parameter
+    /// DCT transform to all blocks
+    // parameter
 	const double PI=3.14159265359;
 	const double w0 = sqrt(1.0/blockSize);
 	const double w1 = sqrt(2.0/blockSize);
@@ -398,6 +388,47 @@ void JPEGEncoder::entropy()
             pushBits(chromaACCodeLengthTable[0], chromaACCodeWordTable[0]);
         }
     }
+}
+
+void JPEGEncoder::write()
+{
+    stringstream ss;
+    ss << quality;
+    string out = name + '_' + ss.str() + ".bin";
+
+    /// fill end with ZERO
+    int zeros = 8-bitstream.size()%8;
+    for(int i=0; i<zeros; i++){
+        bitstream.push_back(false);
+    }
+    int length = bitstream.size()/8;
+    int header = 6; /// for width(2 char), height(2 char), quality(1 char) and zeros(1 char)
+    length = length + header;
+    char* buffer = new char[length];
+
+    buffer[0] = (width>>8) & 0xFF;
+    buffer[1] = width & 0xFF;
+    buffer[2] = (height>>8) & 0xFF;
+    buffer[3] = height & 0xFF;
+    buffer[4] = quality;
+    buffer[5] = zeros;
+
+    /// every 8-bit store in one char, use or operation to set char
+    for(int i=header; i<length; i++){
+        char bit = 0;
+        for(int j=0; j<8; j++){
+            if(bitstream[i*8+j]==1){
+                bit = bit | (1 << (8-1-j));
+            }
+        }
+        buffer[i] = bit;
+    }
+
+    FILE *file;
+    file = fopen(out.c_str(), "wb");
+    fwrite(buffer, sizeof(char), length, file);
+    fclose(file);
+    delete []buffer;
 }
 
 int JPEGEncoder::divCeil(int dividend, int divisor)
