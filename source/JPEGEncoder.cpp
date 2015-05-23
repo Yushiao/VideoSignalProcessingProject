@@ -48,6 +48,7 @@ private:
     int divRound(int dividend, int divisor);
     void dct1d(double* in, double* out, const int count);
     void dct2d(double* in, double* out, const int count);
+    void zigzag(int* in, int* out, const int count);
     int numberOfBits(int number);
     void pushBits(int length, int number);
 };
@@ -292,44 +293,22 @@ void JPEGEncoder::quantization()
 void JPEGEncoder::zigzag()
 {
     /// reorder block to zigzag form
-    int* z = new int[blockSize*blockSize];
-    int* ziter;
+    int blockElement = blockSize*blockSize;
+    int* in = new int[blockElement];
+    int* out = new int[blockElement];
     for(int b=0; b<blockTotal; b++){
-        int blockIndex = b*blockSize*blockSize;
-        ziter = z;
-        for(int s=0; s<2*blockSize-1; s++){
-            if(s<blockSize){ /// upper-left block
-                if(s%2==0){
-                    for(int i=s; i>=0; i--){
-                        *ziter = block[blockIndex+i*blockSize+s-i];
-                        ziter++;
-                    }
-                }else{
-                    for(int i=0; i<=s; i++){
-                        *ziter = block[blockIndex+i*blockSize+s-i];
-                        ziter++;
-                    }
-                }
-            }else{ /// lower-right block
-                if(s%2==0){
-                    for(int i=blockSize-1; s-i<blockSize; i--){
-                        *ziter = block[blockIndex+i*blockSize+s-i];
-                        ziter++;
-                    }
-                }else{
-                    for(int i=s-blockSize+1; i<blockSize; i++){
-                        *ziter = block[blockIndex+i*blockSize+s-i];
-                        ziter++;
-                    }
-                }
-            }
+        int blockIndex = b*blockElement;
+        for(int i=0; i<blockElement; i++){
+            in[i] = block[blockIndex+i];
         }
-        for(int i=0; i<blockSize*blockSize; i++){
-            block[blockIndex+i] = z[i];
+        zigzag(in, out, blockSize);
+        for(int i=0; i<blockElement; i++){
+            block[blockIndex+i] = out[i];
         }
     }
 
-    delete []z;
+    delete []in;
+    delete []out;
 }
 
 void JPEGEncoder::entropy()
@@ -448,7 +427,7 @@ void JPEGEncoder::write()
         bitstream.push_back(false);
     }
     int length = bitstream.size()/8;
-    int header = 6; /// for width(2 char), height(2 char), quality(1 char) and zeros(1 char)
+    int header = 5; /// for width(2 char), height(2 char), quality(1 char)
     length = length + header;
     char* buffer = new char[length];
 
@@ -457,7 +436,6 @@ void JPEGEncoder::write()
     buffer[2] = (height>>8) & 0xFF;
     buffer[3] = height & 0xFF;
     buffer[4] = quality;
-    buffer[5] = zeros;
 
     /// every 8-bit store in one char, use or operation to set char
     for(int i=0; i<length-header; i++){
@@ -540,6 +518,38 @@ void JPEGEncoder::dct2d(double* in, double* out, const int count)
 	delete []temp;
 }
 
+void JPEGEncoder::zigzag(int* in, int* out, const int count)
+{
+    int* iter = out;
+    for(int s=0; s<2*count-1; s++){
+        if(s<count){ /// upper-left block
+            if(s%2==0){
+                for(int i=s; i>=0; i--){
+                    *iter = in[i*count+s-i];
+                    iter++;
+                }
+            }else{
+                for(int i=0; i<=s; i++){
+                    *iter = in[i*count+s-i];
+                    iter++;
+                }
+            }
+        }else{ /// lower-right block
+            if(s%2==0){
+                for(int i=count-1; s-i<count; i--){
+                    *iter = in[i*count+s-i];
+                    iter++;
+                }
+            }else{
+                for(int i=s-count+1; i<count; i++){
+                    *iter = in[i*count+s-i];
+                    iter++;
+                }
+            }
+        }
+    }
+}
+
 int JPEGEncoder::numberOfBits(int number)
 {
     int result = 0;
@@ -565,6 +575,61 @@ void JPEGEncoder::pushBits(int length, int number)
 
 int main(int argc, char* argv[])
 {
-    JPEGEncoder je;
-    je.encode("image\\1_1536x1024.yuv", 1536, 1024, 90);
+    JPEGEncoder* je;
+    string command;
+    string file;
+    string temp;
+    stringstream ss;
+    int width, height, quality;
+
+    if(argc==1 || argc>2){
+        cout << "wrong input arguments" << endl;
+        return 0;
+    }
+    cout << argv[1] << endl;
+    fstream ftxt(argv[1], fstream::in);
+    if(!ftxt.is_open()){
+        cout << argv[1] << " open failed" << endl;
+        return 0;
+    }
+    while(getline(ftxt, command)){
+        cout << "Command: " << command << endl;
+        size_t pos = 0;
+        size_t len = command.find(' ');
+        file = command.substr(pos, len);
+        cout << "Filename: " << file << endl;
+
+        pos = pos+len+1;
+        len = command.find(' ', pos) - pos;
+        temp = command.substr(pos, len);
+        ss << temp;
+        ss >> width;
+        cout << "Width: " << width << endl;
+        ss.str("");
+        ss.clear();
+
+        pos = pos+len+1;
+        len = command.find(' ', pos) - pos;
+        temp = command.substr(pos, len);
+        ss << temp;
+        ss >> height;
+        cout << "Height: " << height << endl;
+        ss.str("");
+        ss.clear();
+
+        pos = pos+len+1;
+        len = command.find(' ', pos) - pos;
+        temp = command.substr(pos, len);
+        ss << temp;
+        ss >> quality;
+        cout << "Quality: " << quality << endl;
+        ss.str("");
+        ss.clear();
+
+        je = new JPEGEncoder();
+        je->encode(file.c_str(), width, height, quality);
+        delete je;
+    }
+    ftxt.close();
+    //je->encode("image\\1_1536x1024.yuv", 1536, 1024, 90);
 }
