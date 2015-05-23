@@ -11,11 +11,6 @@
 #include<algorithm>
 using namespace std;
 
-union bitType{
-    int num;
-    char bit[4];
-};
-
 class JPEGDecoder{
 public:
     JPEGDecoder();
@@ -101,18 +96,16 @@ void JPEGDecoder::initial(const char* filename)
     fbin.close();
 
     /// initial parameter from header
-    union bitType b;
-    b.num = 0;
-    b.bit[0] = buffer[1];
-    b.bit[1] = buffer[0];
-    width = b.num;
-    b.num = 0;
-    b.bit[0] = buffer[3];
-    b.bit[1] = buffer[2];
-    height = b.num;
-    b.num = 0;
-    b.bit[0] = buffer[4];
-    quality = b.num;
+    unsigned char temp0;
+    unsigned char temp1;
+    temp0 = buffer[0];
+    temp1 = buffer[1];
+    width = temp0*256 + temp1;
+    temp0 = buffer[2];
+    temp1 = buffer[3];
+    height = temp0*256 + temp1;
+    temp0 = buffer[4];
+    quality = temp0;
 
     /// change char array to bit array
     for(int i=header; i<length; i++){
