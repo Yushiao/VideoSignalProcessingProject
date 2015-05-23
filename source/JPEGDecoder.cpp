@@ -11,6 +11,11 @@
 #include<algorithm>
 using namespace std;
 
+union bitType{
+    int num;
+    char bit[4];
+};
+
 class JPEGDecoder{
 public:
     JPEGDecoder();
@@ -83,6 +88,9 @@ void JPEGDecoder::initial(const char* filename)
 
     int header = 5;
     fstream fbin(filename, fstream::in | fstream::binary);
+    if(!fbin.is_open()){
+        cout << "open failed" << endl;
+    }
     /// read all binary file to buffer array
     fbin.seekg(0, fbin.end);
     int length = fbin.tellg();
@@ -93,11 +101,18 @@ void JPEGDecoder::initial(const char* filename)
     fbin.close();
 
     /// initial parameter from header
-    width = width | (buffer[0]<<8);
-    width = width | buffer[1];
-    height = height | (buffer[2]<<8);
-    height = height | buffer[3];
-    quality = quality | buffer[4];
+    union bitType b;
+    b.num = 0;
+    b.bit[0] = buffer[1];
+    b.bit[1] = buffer[0];
+    width = b.num;
+    b.num = 0;
+    b.bit[0] = buffer[3];
+    b.bit[1] = buffer[2];
+    height = b.num;
+    b.num = 0;
+    b.bit[0] = buffer[4];
+    quality = b.num;
 
     /// change char array to bit array
     for(int i=header; i<length; i++){
@@ -583,5 +598,6 @@ int main(int argc, char* argv[])
         jd->decode(argv[i]);
         delete jd;
     }
+    return 0;
     //jd->decode("1_1536x1024_90.bin");
 }
