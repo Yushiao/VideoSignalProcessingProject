@@ -108,6 +108,10 @@ int main(int argc, char* argv[])
     stringstream ss;
     int width, height;
 
+    std::ofstream out("out_psnr.txt");
+    std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
+    std::cout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
+
     if(argc==1 || argc>2){
         cout << "wrong input arguments" << endl;
         return 0;
@@ -152,6 +156,7 @@ int main(int argc, char* argv[])
         cout << "PSNR: " << psnr->PSNRYUV(file0.c_str(), file1.c_str(), width, height) << endl;
         delete psnr;
     }
+    std::cout.rdbuf(coutbuf); //reset to standard output again
     ftxt.close();
     return 0;
 }
