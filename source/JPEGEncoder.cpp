@@ -460,14 +460,14 @@ void JPEGEncoder::write()
     buffer[5] = zeros;
 
     /// every 8-bit store in one char, use or operation to set char
-    for(int i=header; i<length; i++){
+    for(int i=0; i<length-header; i++){
         char bit = 0;
         for(int j=0; j<8; j++){
             if(bitstream[i*8+j]==1){
                 bit = bit | (1 << (8-1-j));
             }
         }
-        buffer[i] = bit;
+        buffer[header+i] = bit;
     }
 
     FILE *file;
