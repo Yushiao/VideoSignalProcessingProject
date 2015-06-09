@@ -11,6 +11,36 @@
 #include<sstream>
 using namespace std;
 
+class Block_8x8{
+public:
+    Block_8x8(){
+        data = new int[64];
+    }
+    ~Block_8x8(){
+        delete []data;
+    }
+    void print(){
+        for(int i=0; i<8; i++){
+            for(int j=0; j<8; j++){
+                cout << data[i*8+j] << ' ';
+            }
+            cout << endl;
+        }
+    }
+    int* data;
+    int upper;
+    int left;
+};
+
+class BlockSet{
+public:
+    void initial(int t){
+        total = t;
+        block = new Block_8x8[total];
+    }
+    Block_8x8* block;
+    int total;
+};
 class JPEGEncoder{
 public:
     JPEGEncoder();
@@ -48,6 +78,9 @@ private:
     int* modeArray;
     // new
     int* blockRebuild;
+    BlockSet Y;
+    BlockSet U;
+    BlockSet V;
 
     int* lumaTableQuality;
     int* chromaTableQuality;
@@ -179,9 +212,12 @@ void JPEGEncoder::partition()
     blockWidthChroma = divCeil(width/2, blockSize);
     blockHeightChroma = divCeil(height/2, blockSize);
     blockLumaTotal = blockWidthLuma*blockHeightLuma;
-    blockChromaTotal = 2*blockWidthChroma*blockHeightChroma;
+    blockChromaTotal = blockWidthChroma*blockHeightChroma;
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
+    Y.initial(blockLumaTotal);
+    U.initial(blockChromaTotal);
+    V.initial(blockChromaTotal);
     block = new int[blockTotal*blockSize*blockSize];
     int* blockIter = block;
     /// set data to block from image
@@ -193,6 +229,9 @@ void JPEGEncoder::partition()
                     int ij = n*blockSize+j;
                     *blockIter = (ii<height && ij<width) ? image[ii*width+ij] : 255;
                     blockIter++;
+                    Y.block[m*blockWidthLuma+n].data[i*blockSize+j] = (ii<height && ij<width) ? image[ii*width+ij] : 255;
+                    Y.block[m*blockWidthLuma+n].upper = (m==0) ? -1 : (m-1)*blockWidthLuma+n;
+                    Y.block[m*blockWidthLuma+n].left = (n==0) ? -1 : m*blockWidthLuma+n-1;
                 }
             }
         }
@@ -205,6 +244,9 @@ void JPEGEncoder::partition()
                     int ij = n*blockSize+j;
                     *blockIter = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 255;
                     blockIter++;
+                    U.block[m*blockWidthChroma+n].data[i*blockSize+j] = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 255;
+                    U.block[m*blockWidthChroma+n].upper = (m==0) ? -1 : (m-1)*blockWidthChroma+n;
+                    U.block[m*blockWidthChroma+n].left = (n==0) ? -1 : m*blockWidthChroma+n-1;
                 }
             }
         }
@@ -217,6 +259,9 @@ void JPEGEncoder::partition()
                     int ij = n*blockSize+j;
                     *blockIter = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 255;
                     blockIter++;
+                    V.block[m*blockWidthChroma+n].data[i*blockSize+j] = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 255;
+                    V.block[m*blockWidthChroma+n].upper = (m==0) ? -1 : (m-1)*blockWidthChroma+n;
+                    V.block[m*blockWidthChroma+n].left = (n==0) ? -1 : m*blockWidthChroma+n-1;
                 }
             }
         }
