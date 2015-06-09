@@ -22,6 +22,8 @@ public:
 
     void initial(const char* filename, int w, int h, int q);
     void partition();
+    // new function
+    void intra_prediction();
     void transform();
     void quantization();
     void zigzag();
@@ -40,12 +42,18 @@ private:
     int blockLumaTotal;
     int blockChromaTotal;
     int* block; /// every 8x8 block
+    // new
+    static const int intraMode=5;
+    // new
+    int* intra_canaidate;
 
     vector<bool> bitstream; /// entropy coding
 
     /// sub function
     int divCeil(int dividend, int divisor);
     int divRound(int dividend, int divisor);
+    //new sub function
+    void predict(int *ori_block);
     void dct1d(double* in, double* out, const int count);
     void dct2d(double* in, double* out, const int count);
     void zigzag(int* in, int* out, const int count);
@@ -69,6 +77,7 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
     initial(filename, w, h, q);
     partition(); /// partition into 8x8 block
+    intra_prediction();
     transform(); /// DCT transform
     quantization();
     zigzag();
@@ -176,6 +185,32 @@ void JPEGEncoder::partition()
         *blockIter = *blockIter-128;
         blockIter++;
     }
+}
+
+void JPEGEncoder::intra_prediction()
+{
+    intra_canaidate = new int[blockSize*blockSize*intraMode];
+    int* dct_result = new int[blockSize*blockSize*intraMode];
+    int* quant_result = new int[blockSize*blockSize*intraMode];
+    int* best_result = new int [blockSize*blockSize];
+    /*
+    for(int i=0;i<blockTotal;i++){
+        predict(block+blockSize*blockSize*i);
+        dct8x8();
+        block_quant();
+        block_dequant();
+        block_idct();
+        compare();
+        reconstruct();
+    }
+    */
+}
+
+void predict(int *ori_block)
+{
+    //vertical_pred(ori_block);
+    //horizontal_pred(ori_block);
+    //...
 }
 
 void JPEGEncoder::transform()
