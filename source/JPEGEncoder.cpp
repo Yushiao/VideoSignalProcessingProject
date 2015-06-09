@@ -11,8 +11,6 @@
 #include<sstream>
 using namespace std;
 
-#define PI 3.14159265358979
-
 class JPEGEncoder{
 public:
     JPEGEncoder();
@@ -41,6 +39,9 @@ private:
     int blockChromaTotal;
     int* block; /// every 8x8 block
 
+    int* lumaTableQuality;
+    int* chromaTableQuality;
+
     vector<bool> bitstream; /// entropy coding
 
     /// sub function
@@ -48,9 +49,17 @@ private:
     int divRound(int dividend, int divisor);
     void dct1d(double* in, double* out, const int count);
     void dct2d(double* in, double* out, const int count);
+    void idct1d(double* in, double* out, const int count);
+    void idct2d(double* in, double* out, const int count);
+    void transform(int* in, int* out, const int count);
+    void itransform(int* in, int* out, const int count);
+    void quantizationTableCreate();
+    void quantization(int* in, int* out, const int count, int type);
+    void iquantization(int* in, int* out, const int count, int type);
     void zigzag(int* in, int* out, const int count);
     int numberOfBits(int number);
     void pushBits(int length, int number);
+    void printArray2D(int* arr, int height, int width);
 };
 
 JPEGEncoder::JPEGEncoder()
@@ -69,12 +78,37 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
     initial(filename, w, h, q);
     partition(); /// partition into 8x8 block
-    transform(); /// DCT transform
-    quantization();
-    zigzag();
+
+    int blockTotalSize = blockSize*blockSize;
+    int* blockNow = new int[blockTotalSize];
+    int* blockTemp = new int[blockTotalSize];
+    int* blockReconstruct = new int[blockTotalSize];
+    for(int b=0; b<1/*blockLumaTotal*/; b++){
+        for(int i=0; i<blockTotalSize; i++){
+            blockNow[i] = block[b*blockTotalSize+i];
+        }
+        printArray2D(blockNow, blockSize, blockSize);
+        transform(blockNow, blockTemp, blockSize);
+        printArray2D(blockTemp, blockSize, blockSize);
+        quantization(blockTemp, blockTemp, blockSize, 0);
+        printArray2D(blockTemp, blockSize, blockSize);
+
+        iquantization(blockTemp, blockReconstruct, blockSize, 0);
+        printArray2D(blockReconstruct, blockSize, blockSize);
+        itransform(blockReconstruct, blockReconstruct, blockSize);
+        printArray2D(blockReconstruct, blockSize, blockSize);
+        cout << endl;
+
+        // find min MSE
+        for(int i=0; i<blockTotalSize; i++){
+            block[b*blockTotalSize+i] = blockTemp[i];
+        }
+    }
+
+    /*zigzag();
     entropy();
 
-    write();
+    write();*/
 }
 
 void JPEGEncoder::initial(const char* filename, int w, int h, int q)
@@ -94,6 +128,8 @@ void JPEGEncoder::initial(const char* filename, int w, int h, int q)
     image = new unsigned char[size];
     fread(image, sizeof(char), size, file);
     fclose(file);
+
+    quantizationTableCreate();
 
     /*width = 8;
     height = 8;
@@ -170,55 +206,17 @@ void JPEGEncoder::partition()
             }
         }
     }
-    /// level shift 2^(Bits-1)
+/*    /// level shift 2^(Bits-1)
     blockIter = block;
     for(int i=0; i<blockTotal*blockSize*blockSize; i++){
         *blockIter = *blockIter-128;
         blockIter++;
-    }
+    }*/
 }
 
 void JPEGEncoder::transform()
 {
     /// DCT transform to all blocks
-    // parameter
-/*	const double w0 = sqrt(1.0/blockSize);
-	const double w1 = sqrt(2.0/blockSize);
-
-    double* result = new double[blockSize*blockSize];
-	double dct_matrix[blockSize][blockSize]={0}; //dct transform martix : dimention =(blockSize*blockSize)
-
-	for(int i=0; i<blockSize; i++){
-		for(int j=0; j<blockSize; j++){
-			dct_matrix[i][j] = cos((2*j+1)*i*PI/blockSize/2);
-		}
-	}
-
-//	for(int i=0; i<2*blockSize; i++){
-//        printf("block[%d]: %d\n",i,block[i]);
-//	}
-
-	for(int i=0; i<blockTotal*blockSize*blockSize; i++){
-		for(int j=0; j<blockSize; j++){
-			//i!=8n ex:0,8,16,...
-			if(i%blockSize){
-				result[i] += block[i/blockSize+j]*w1*dct_matrix[i%blockSize][j];
-			}
-			//i==8n ex:0,8,16,...
-			else{
-				result[i] += block[i/blockSize+j]*w0*dct_matrix[i%blockSize][j];
-			}
-		}
-	}
-
-	for(int i=0; i<blockTotal*blockSize*blockSize; i++){
-        block[i] = round(result[i]);
-//        printf("result[%d]: %d\n",i,block[i]);
-//        printf("result[%d]: %f\n",i,result[i]);
-	}
-
-    delete []result;*/
-
     double* in = new double[blockSize*blockSize];
     double* out = new double[blockSize*blockSize];
     for(int b=0; b<blockTotal; b++){
@@ -235,7 +233,33 @@ void JPEGEncoder::transform()
     delete []out;
 }
 
-void JPEGEncoder::quantization()
+void JPEGEncoder::transform(int* in, int* out, const int count)
+{
+    double* dctin = new double[count*count];
+    double* dctout = new double[count*count];
+    for(int i=0; i<count*count; i++){
+        dctin[i] = in[i];
+    }
+    dct2d(dctin, dctout, count);
+    for(int i=0; i<count*count; i++){
+        out[i] = round(dctout[i]);
+    }
+}
+
+void JPEGEncoder::itransform(int* in, int* out, const int count)
+{
+    double* dctin = new double[count*count];
+    double* dctout = new double[count*count];
+    for(int i=0; i<count*count; i++){
+        dctin[i] = in[i];
+    }
+    idct2d(dctin, dctout, count);
+    for(int i=0; i<count*count; i++){
+        out[i] = round(dctout[i]);
+    }
+}
+
+void JPEGEncoder::quantizationTableCreate()
 {
     static const int lumaTable[] = {
       16, 11, 10, 16, 24, 40, 51, 61,
@@ -260,8 +284,8 @@ void JPEGEncoder::quantization()
     };
 
     /// quality quantization table
-    int* lumaTableQuality = new int[blockSize*blockSize];
-    int* chromaTableQuality = new int[blockSize*blockSize];
+    lumaTableQuality = new int[blockSize*blockSize];
+    chromaTableQuality = new int[blockSize*blockSize];
     int q = (quality<50) ? (5000/quality) : (200-2*quality);
     for(int i=0; i<blockSize*blockSize; i++){
         int lumaTemp = divRound(lumaTable[i]*q, 100);
@@ -271,7 +295,10 @@ void JPEGEncoder::quantization()
         lumaTableQuality[i] = lumaTemp;
         chromaTableQuality[i] = chromaTemp;
     }
+}
 
+void JPEGEncoder::quantization()
+{
     /// quantize all blocks
     int* blockIter = block;
     for(int b=0; b<blockLumaTotal; b++){
@@ -286,8 +313,62 @@ void JPEGEncoder::quantization()
             blockIter++;
         }
     }
-    delete []lumaTableQuality;
-    delete []chromaTableQuality;
+    //delete []lumaTableQuality;
+    //delete []chromaTableQuality;
+}
+
+void JPEGEncoder::quantization(int* in, int* out, const int count, int type)
+{
+    int* inIter = in;
+    int* outIter = out;
+    int blockTotalSize = count*count;
+    switch(type){
+        case 0: // luma
+        {
+            for(int i=0; i<blockTotalSize; i++){
+                *outIter = divRound(*inIter, lumaTableQuality[i]);
+                inIter++;
+                outIter++;
+            }
+        }
+        break;
+        case 1: // chroma
+        {
+            for(int i=0; i<blockTotalSize; i++){
+                *outIter = divRound(*inIter, chromaTableQuality[i]);
+                inIter++;
+                outIter++;
+            }
+        }
+        break;
+    }
+}
+
+void JPEGEncoder::iquantization(int* in, int* out, const int count, int type)
+{
+    int* inIter = in;
+    int* outIter = out;
+    int blockTotalSize = count*count;
+    switch(type){
+        case 0: // luma
+        {
+            for(int i=0; i<blockTotalSize; i++){
+                *outIter = (*inIter) * lumaTableQuality[i];
+                inIter++;
+                outIter++;
+            }
+        }
+        break;
+        case 1: // chroma
+        {
+            for(int i=0; i<blockTotalSize; i++){
+                *outIter = (*inIter) * chromaTableQuality[i];
+                inIter++;
+                outIter++;
+            }
+        }
+        break;
+    }
 }
 
 void JPEGEncoder::zigzag()
@@ -476,7 +557,7 @@ void JPEGEncoder::dct1d(double* in, double* out, const int count)
 	for(int u=0; u<count; u++){
 		double z = 0.0;
 		for(int x=0; x<count; x++){
-			z += in[x] * cos(PI*u*(2*x+1)/(2*count));
+			z += in[x] * cos(M_PI*u*(2*x+1)/(2*count));
 		}
 		if(u == 0) z *= sqrt(1.0/count);
 		else z *= sqrt(2.0/count);
@@ -508,6 +589,55 @@ void JPEGEncoder::dct2d(double* in, double* out, const int count)
 			in1d[i] = temp[i*count+j];
 		}
 		dct1d(in1d, out1d, count);
+		for(int i=0; i<count; i++){
+            out[i*count+j] = out1d[i];
+		}
+	}
+
+	delete []in1d;
+	delete []out1d;
+	delete []temp;
+}
+
+void JPEGEncoder::idct1d(double* in, double* out, const int count){
+    double* temp = new double[count];
+    for(int i=0; i<count; i++){
+        if(i==0) temp[i] = in[i] * sqrt(1.0/count);
+        else temp[i] = in[i] * sqrt(2.0/count);
+    }
+    for(int n=0; n<count; n++){
+        double o = 0.0;
+        for(int k=0; k<count; k++){
+            o += temp[k]*cos(M_PI*(2*n+1)*k/(2*count));
+        }
+        out[n] = o;
+    }
+    delete []temp;
+}
+
+void JPEGEncoder::idct2d(double* in, double* out, const int count){
+    double* in1d = new double[count];
+    double* out1d = new double[count];
+	double* temp = new double[count*count];
+
+	/* transform rows */
+	for(int j=0; j<count; j++){
+		for(int i=0; i<count; i++){
+			in1d[i] = in[j*count+i];
+		}
+		idct1d(in1d, out1d, count);
+		for(int i=0; i<count; i++){
+            temp[j*count+i] = out1d[i];
+		}
+	}
+
+	/* transform columns */
+	for(int j=0; j<count; j++)
+	{
+		for(int i=0; i<count; i++){
+			in1d[i] = temp[i*count+j];
+		}
+		idct1d(in1d, out1d, count);
 		for(int i=0; i<count; i++){
             out[i*count+j] = out1d[i];
 		}
@@ -573,9 +703,19 @@ void JPEGEncoder::pushBits(int length, int number)
     }
 }
 
+void JPEGEncoder::printArray2D(int* arr, int height, int width)
+{
+    for(int i=0; i<height; i++){
+        for(int j=0; j<width; j++){
+            cout << arr[i*width+j] << ' ';
+        }
+        cout << endl;
+    }
+}
+
 int main(int argc, char* argv[])
 {
-    JPEGEncoder* je;
+    /*JPEGEncoder* je;
     string command;
     string file;
     string temp;
@@ -630,6 +770,9 @@ int main(int argc, char* argv[])
         je->encode(file.c_str(), width, height, quality);
         delete je;
     }
-    ftxt.close();
-    //je->encode("image\\1_1536x1024.yuv", 1536, 1024, 90);
+    ftxt.close();*/
+    JPEGEncoder* je;
+    je = new JPEGEncoder();
+    je->encode("image\\5_1000x1504.yuv", 1536, 1024, 90);
+    delete je;
 }
