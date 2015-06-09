@@ -242,7 +242,7 @@ void JPEGEncoder::intra_prediction()
     */
 }
 
-void predict(int *ori_block)
+void JPEGEncoder::predict(int *ori_block)
 {
     //vertical_pred(ori_block);
     //horizontal_pred(ori_block);
