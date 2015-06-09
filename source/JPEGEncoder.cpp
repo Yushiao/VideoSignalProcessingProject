@@ -44,6 +44,10 @@ private:
     static const int intraMode=5;
     // new
     int* intra_canaidate;
+    // new
+    int* modeArray;
+    // new
+    int* blockRebuild;
 
     int* lumaTableQuality;
     int* chromaTableQuality;
@@ -55,6 +59,8 @@ private:
     int divRound(int dividend, int divisor);
     //new sub function
     void predict(int *ori_block);
+    void vertical_pred(int *ori_block);
+    // end new
     void dct1d(double* in, double* out, const int count);
     void dct2d(double* in, double* out, const int count);
     void idct1d(double* in, double* out, const int count);
@@ -86,32 +92,33 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
     initial(filename, w, h, q);
     partition(); /// partition into 8x8 block
+    intra_prediction();
 
-    int blockTotalSize = blockSize*blockSize;
-    int* blockNow = new int[blockTotalSize];
-    int* blockTemp = new int[blockTotalSize];
-    int* blockReconstruct = new int[blockTotalSize];
-    for(int b=0; b<1/*blockLumaTotal*/; b++){
-        for(int i=0; i<blockTotalSize; i++){
-            blockNow[i] = block[b*blockTotalSize+i];
-        }
-        printArray2D(blockNow, blockSize, blockSize);
-        transform(blockNow, blockTemp, blockSize);
-        printArray2D(blockTemp, blockSize, blockSize);
-        quantization(blockTemp, blockTemp, blockSize, 0);
-        printArray2D(blockTemp, blockSize, blockSize);
-
-        iquantization(blockTemp, blockReconstruct, blockSize, 0);
-        printArray2D(blockReconstruct, blockSize, blockSize);
-        itransform(blockReconstruct, blockReconstruct, blockSize);
-        printArray2D(blockReconstruct, blockSize, blockSize);
-        cout << endl;
-
-        // find min MSE
-        for(int i=0; i<blockTotalSize; i++){
-            block[b*blockTotalSize+i] = blockTemp[i];
-        }
-    }
+//    int blockTotalSize = blockSize*blockSize;
+//    int* blockNow = new int[blockTotalSize];
+//    int* blockTemp = new int[blockTotalSize];
+//    int* blockReconstruct = new int[blockTotalSize];
+//    for(int b=0; b<1/*blockLumaTotal*/; b++){
+//        for(int i=0; i<blockTotalSize; i++){
+//            blockNow[i] = block[b*blockTotalSize+i];
+//        }
+//        printArray2D(blockNow, blockSize, blockSize);
+//        transform(blockNow, blockTemp, blockSize);
+//        printArray2D(blockTemp, blockSize, blockSize);
+//        quantization(blockTemp, blockTemp, blockSize, 0);
+//        printArray2D(blockTemp, blockSize, blockSize);
+//
+//        iquantization(blockTemp, blockReconstruct, blockSize, 0);
+//        printArray2D(blockReconstruct, blockSize, blockSize);
+//        itransform(blockReconstruct, blockReconstruct, blockSize);
+//        printArray2D(blockReconstruct, blockSize, blockSize);
+//        cout << endl;
+//
+//        // find min MSE
+//        for(int i=0; i<blockTotalSize; i++){
+//            block[b*blockTotalSize+i] = blockTemp[i];
+//        }
+//    }
 
     /*zigzag();
     entropy();
@@ -225,29 +232,40 @@ void JPEGEncoder::partition()
 
 void JPEGEncoder::intra_prediction()
 {
+    modeArray = new int[blockTotal];
     intra_canaidate = new int[blockSize*blockSize*intraMode];
+    blockRebuild = new int[blockSize*blockSize*blockTotal];
     int* dct_result = new int[blockSize*blockSize*intraMode];
     int* quant_result = new int[blockSize*blockSize*intraMode];
     int* best_result = new int [blockSize*blockSize];
     /*
     for(int i=0;i<blockTotal;i++){
         predict(block+blockSize*blockSize*i);
-        dct8x8();
-        block_quant();
-        block_dequant();
-        block_idct();
-        compare();
-        reconstruct();
+        for(int j=0; j<intraMode; j++){
+            transform(intra_canaidate+j*blockSize*blockSize, dct_result+j*blockSize*blockSize, blockSize);
+            quantization(dct_result+j*blockSize*blockSize, quant_result+j*blockSize*blockSize, blockSize, int type);
+            iquantization(quant_result+j*blockSize*blockSize, dct_result+j*blockSize*blockSize, blockSize, int type);
+            itransform(dct_result+j*blockSize*blockSize, intra_canaidate+j*blockSize*blockSize, blockSize);
+        }
+        modeArray[i] = compare();
+        reconstruct(quant_result+i*blockSize*blockSize);
     }
     */
 }
 
 void JPEGEncoder::predict(int *ori_block)
 {
-    //vertical_pred(ori_block);
+    vertical_pred(ori_block);
     //horizontal_pred(ori_block);
-    //...
+    //dc_prediction(ori_block);
+    //
 }
+
+void JPEGEncoder::vertical_pred(int *ori_block)
+{
+
+}
+
 
 void JPEGEncoder::transform()
 {
