@@ -41,6 +41,7 @@ public:
     Block_8x8* block;
     int total;
 };
+
 class JPEGEncoder{
 public:
     JPEGEncoder();
@@ -50,7 +51,6 @@ public:
 
     void initial(const char* filename, int w, int h, int q);
     void partition();
-    // new function
     void intra_prediction();
     void transform();
     void quantization();
@@ -72,12 +72,10 @@ private:
     int* block; /// every 8x8 block
     // new
     static const int intraMode=5;
-    // new
-    int* intra_canaidate;
-    // new
+    Block_8x8* intra_canaidate;
     int* modeArray;
-    // new
-    int* blockRebuild;
+    Block_8x8* blockRebuild;
+    //end new
     BlockSet Y;
     BlockSet U;
     BlockSet V;
@@ -91,8 +89,8 @@ private:
     int divCeil(int dividend, int divisor);
     int divRound(int dividend, int divisor);
     //new sub function
-    void predict(int *ori_block);
-    void vertical_pred(int *ori_block);
+    void predict(Block_8x8 ori_block);
+    void vertical_pred(Block_8x8 ori_block);
     // end new
     void dct1d(double* in, double* out, const int count);
     void dct2d(double* in, double* out, const int count);
@@ -278,27 +276,27 @@ void JPEGEncoder::partition()
 void JPEGEncoder::intra_prediction()
 {
     modeArray = new int[blockTotal];
-    intra_canaidate = new int[blockSize*blockSize*intraMode];
-    blockRebuild = new int[blockSize*blockSize*blockTotal];
-    int* dct_result = new int[blockSize*blockSize*intraMode];
-    int* quant_result = new int[blockSize*blockSize*intraMode];
-    int* best_result = new int [blockSize*blockSize];
-    /*
-    for(int i=0;i<blockTotal;i++){
-        predict(block+blockSize*blockSize*i);
-        for(int j=0; j<intraMode; j++){
-            transform(intra_canaidate+j*blockSize*blockSize, dct_result+j*blockSize*blockSize, blockSize);
-            quantization(dct_result+j*blockSize*blockSize, quant_result+j*blockSize*blockSize, blockSize, int type);
-            iquantization(quant_result+j*blockSize*blockSize, dct_result+j*blockSize*blockSize, blockSize, int type);
-            itransform(dct_result+j*blockSize*blockSize, intra_canaidate+j*blockSize*blockSize, blockSize);
-        }
-        modeArray[i] = compare();
-        reconstruct(quant_result+i*blockSize*blockSize);
+    intra_canaidate = new Block_8x8[intraMode];
+    blockRebuild = new Block_8x8[blockTotal];
+    Block_8x8* dct_result = new Block_8x8[intraMode];
+    Block_8x8* quant_result = new Block_8x8[intraMode];
+    //int* best_result = new Block_8x8 [blockSize*blockSize];
+
+    for(int i=0;i<Y.total;i++){
+        predict(Y.block[i]);
+//        for(int j=0; j<intraMode; j++){
+//            transform(intra_canaidate+j*blockSize*blockSize, dct_result+j*blockSize*blockSize, blockSize);
+//            quantization(dct_result+j*blockSize*blockSize, quant_result+j*blockSize*blockSize, blockSize, int type);
+//            iquantization(quant_result+j*blockSize*blockSize, dct_result+j*blockSize*blockSize, blockSize, int type);
+//            itransform(dct_result+j*blockSize*blockSize, intra_canaidate+j*blockSize*blockSize, blockSize);
+//        }
+//        modeArray[i] = compare();
+//        reconstruct(quant_result+i*blockSize*blockSize);
     }
-    */
+
 }
 
-void JPEGEncoder::predict(int *ori_block)
+void JPEGEncoder::predict(Block_8x8 ori_block)
 {
     vertical_pred(ori_block);
     //horizontal_pred(ori_block);
@@ -306,9 +304,21 @@ void JPEGEncoder::predict(int *ori_block)
     //
 }
 
-void JPEGEncoder::vertical_pred(int *ori_block)
+void JPEGEncoder::vertical_pred(Block_8x8 ori_block)
 {
-
+    if(ori_block.upper==-1){
+        for(int i=0; i<blockSize*blockSize; i++){
+            intra_canaidate[1].data[i] = 128 - ori_block.data[i];
+        }
+    }
+    else{
+        for(int i=0; i<blockSize*blockSize; i++){
+            intra_canaidate[1].data[i] = Y.block[ ori_block.upper].data[i%blockSize+(blockSize-1)*blockSize];
+        }
+        for(int i=0; i<blockSize*blockSize; i++){
+            intra_canaidate[1].data[i] = intra_canaidate[1].data[i] - ori_block.data[i];
+        }
+    }
 }
 
 
