@@ -81,15 +81,7 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
     initial(filename, w, h, q);
     partition(); /// partition into 8x8 block
-    /*Y.block[0].print();
-    levelShift(Y.block[0], Yq.block[0]);
-    Yq.block[0].print();
-    Transform::transform(Yq.block[0], Yq.block[0]);
-    Yq.block[0].print();
-    Quantization::quantization(Yq.block[0], Yq.block[0], lumaQTable);
-    Yq.block[0].print();
-    zigzag(Yq.block[0], Yq.block[0]);
-    Yq.block[0].print();*/
+
     for(int i=0; i<Y.total; i++){
         levelShift(Y.block[i], Yq.block[i]);
         Transform::transform(Yq.block[i], Yq.block[i]);
@@ -108,7 +100,6 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 
     zigzag();
     entropy();
-    cout << bitstream.size();
     write();
 }
 
@@ -509,7 +500,7 @@ void JPEGEncoder::pushBits(int length, int number)
 
 int main(int argc, char* argv[])
 {
-    /*JPEGEncoder* je;
+    JPEGEncoder* je;
     string command;
     string file;
     string temp;
@@ -564,9 +555,9 @@ int main(int argc, char* argv[])
         je->encode(file.c_str(), width, height, quality);
         delete je;
     }
-    ftxt.close();*/
-    JPEGEncoder* je;
+    ftxt.close();
+    /*JPEGEncoder* je;
     je = new JPEGEncoder();
     je->encode("image\\5_1000x1504.yuv", 1000, 1504, 50);
-    delete je;
+    delete je;*/
 }
