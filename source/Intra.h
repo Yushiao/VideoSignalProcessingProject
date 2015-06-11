@@ -23,16 +23,15 @@ public:
 
     //....
     static void rerange(Block_8x8& recover); // let recover block between 0~255
-    //static void reconstruct( BlockSet& result, Block_8x8* canaidate_array, int index );
+    static int minMSE(Block_8x8& now, Block_8x8* predArray);
 
     static const int count = 8;
     static const int size = 64;
+    static const int modeNum=3;
 };
 
 void Intra::intra_process(BlockSet& image, BlockSet& quantized, Block_8x8& table)
 {
-
-    int modeNum=3;
     Block_8x8 canaidate[5];
     Block_8x8 dct_canaidate[5];
     Block_8x8 quant_canaidate[5];
@@ -40,54 +39,40 @@ void Intra::intra_process(BlockSet& image, BlockSet& quantized, Block_8x8& table
     Block_8x8 idct_canaidate[5];
     Block_8x8 re_canaidate[5];
 
-    //for(int i=0; i<ori.total; i++){
-    for(int i=0; i<1; i++){
+    for(int i=0; i<image.total; i++){
+    //for(int i=0; i<1; i++){
         for(int j=0; j<modeNum; j++){ /// test every prediction mode
-            /*if(i%4==0){
-                cout << "ori[" <<i<< "]:\n";
-                ori.block[i].print();
-            }*/
+
             intra_prediction( image, image.block[i], canaidate[j], j);
-            /*if(i%4==0){
-                cout << "intra prediction[" <<i<< "]:\n";
-                canaidate[j].print();
-            }*/
-            canaidate[j].print();
+
             Transform::transform(canaidate[j], dct_canaidate[j]);
             Quantization::quantization(dct_canaidate[j], quant_canaidate[j], table);
             Quantization::iquantization(quant_canaidate[j], iquant_canaidate[j], table);
             Transform::itransform(iquant_canaidate[j], idct_canaidate[j]);
-//            if(i%4==0){
-//                cout << "after quantization[" <<i<< "]:\n";
-//                quant_canaidate[j].print();
-//                cout << "after itransform[" <<i<< "]:\n";
-//                idct_canaidate[j].print();
-//            }
+//            cout << "after quantization[" <<i<< "]:\n";
+//            quant_canaidate[j].print();
+//            cout << "after itransform[" <<i<< "]:\n";
+//            idct_canaidate[j].print();
             idct_canaidate[j].setneighbor(image.block[i]);
             intra_recover( image, idct_canaidate[j], re_canaidate[j], j);
+            rerange(re_canaidate[j]);
 
             cout << "original" << endl;
             image.block[i].print();
+            cout << "prediction result" <<endl;
+            canaidate[j].print();
             cout << "recover" << endl;
-            //re_canaidate[j].print();
-
-            rerange(re_canaidate[j]);
-
             re_canaidate[j].print();
             cout << "quantized" << endl;
             quant_canaidate[j].print();
 
-            /*if(i%4==0){
-                cout << "recover[" <<i<< "]:\n";
-                re_canaidate[j].print();
-            }*/
-
             cout << "MSE" << Common::MSE( re_canaidate[j], image.block[i]) << endl;
         }
         /// find minimum MSE and update image
-        //image.block[i] = re_canaidate[best];
-        //quantized.block[i] = quant_canaidate[best];
-        //quantized.block[i].mode = best;
+        int best = minMSE(image.block[i], re_canaidate);
+        image.block[i] = re_canaidate[best];
+        quantized.block[i] = quant_canaidate[best];
+        quantized.block[i].mode = best;
     }
 }
 
@@ -120,7 +105,8 @@ void Intra::vertical_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
 {
     if(now.upper==-1){
         pred.setnumber(128);
-    }else{
+    }
+    else{
         for(int i=0; i<size; i++){
             pred.data[i] = image.block[now.upper].data[i%count+(count-1)*count];
         }
@@ -132,7 +118,8 @@ void Intra::horizontal_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
 {
     if(now.left==-1){
         pred.setnumber(128);
-    }else{
+    }
+    else{
         for(int i=0; i<size; i++){
             pred.data[i] = image.block[now.left].data[(i/count)*count + count-1];
         }
@@ -150,17 +137,20 @@ void Intra::dc_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
             sum += image.block[now.upper].data[(count-1)*count+i];
         }
         pred.setnumber(Common::divRound(sum,8));
-    }else if(now.left==-1 && now.upper!=-1){
+    }
+    else if(now.left==-1 && now.upper!=-1){
         for(int i=0; i<count; i++){ // upper
             sum += image.block[now.upper].data[(count-1)*count+i];
         }
         pred.setnumber(Common::divRound(sum,4));
-    }else if(now.left!=-1 && now.upper==-1){
+    }
+    else if(now.left!=-1 && now.upper==-1){
         for(int i=0; i<count; i++){ // left
             sum += image.block[now.left].data[i*count+count-1];
         }
         pred.setnumber(Common::divRound(sum,4));
-    }else{
+    }
+    else{
         pred.setnumber(128);
     }
 }
@@ -208,11 +198,18 @@ void Intra::rerange(Block_8x8& recover)
     }
 }
 
-/*void Intra::reconstruct( BlockSet& result, Block_8x8* canaidate_array, int index )
+int Intra::minMSE(Block_8x8& now, Block_8x8* predArray)
 {
-    for(int i=0; i<8*8; i++){
-        result.block[index].data[i] = canaidate_array[0].data[i];
+    int minTerm=0;
+    double minValue = Common::MSE( predArray[0], now );
+
+    for(int i=1; i<modeNum; i++){
+        if( minValue > Common::MSE( predArray[i], now )){
+            minValue = Common::MSE( predArray[i], now );
+            minTerm = i;
+        }
     }
-}*/
+    return minTerm;
+}
 
 #endif // INTRA_H_INCLUDED

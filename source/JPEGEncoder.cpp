@@ -82,9 +82,9 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
     initial(filename, w, h, q);
     partition(); /// partition into 8x8 block
-    Intra::intra_process( Y, Yq, blockSize, lumaQTable);
-    cout << "Yq block[0]:\n";
-    Yq.block[0].print();
+    Intra::intra_process( Y, Yq, lumaQTable);
+//    cout << "Yq block[0]:\n";
+//    Yq.block[0].print();
 
 //    for(int i=0; i<Y.total; i++){
 //        levelShift(Y.block[i], Yq.block[i]);
