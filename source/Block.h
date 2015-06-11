@@ -12,7 +12,11 @@ public:
         delete []data;
     }
     void print();
-    Block_8x8 &operator=(const Block_8x8& b);
+    Block_8x8 &operator=(const Block_8x8& b); // assignment
+    Block_8x8 &operator+=(const Block_8x8& b); // Block += b
+    Block_8x8 &operator-=(const Block_8x8& b); // Block -= b
+    Block_8x8 operator+(const Block_8x8& b); // Block + b
+    Block_8x8 operator-(const Block_8x8& b); // Block - b
     static const int size = 64;
     int* data;
     int upper;
@@ -39,6 +43,40 @@ Block_8x8 &Block_8x8::operator=(const Block_8x8& b)
         data[i]=b.data[i];
     }
     return *this;
+}
+
+Block_8x8 &Block_8x8::operator+=(const Block_8x8& b)
+{
+    for(int i=0; i<size; i++){
+        data[i]+=b.data[i];
+    }
+    return *this;
+}
+
+Block_8x8 &Block_8x8::operator-=(const Block_8x8& b)
+{
+    for(int i=0; i<size; i++){
+        data[i]-=b.data[i];
+    }
+    return *this;
+}
+
+Block_8x8 Block_8x8::operator+(const Block_8x8& b)
+{
+    Block_8x8 r;
+    for(int i=0; i<size; i++){
+        r.data[i] = data[i] + b.data[i];
+    }
+    return r;
+}
+
+Block_8x8 Block_8x8::operator-(const Block_8x8& b)
+{
+    Block_8x8 r;
+    for(int i=0; i<size; i++){
+        r.data[i] = data[i] - b.data[i];
+    }
+    return r;
 }
 
 void Block_8x8::print()
