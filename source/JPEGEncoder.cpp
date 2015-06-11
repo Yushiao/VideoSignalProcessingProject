@@ -82,7 +82,7 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
 {
     initial(filename, w, h, q);
     partition(); /// partition into 8x8 block
-    Intra::intra_process( Y, Yq, lumaQTable);
+    Intra::intra_process( Y, Yq, quality);
 //    cout << "Yq block[0]:\n";
 //    Yq.block[0].print();
 
@@ -565,6 +565,6 @@ int main(int argc, char* argv[])
     ftxt.close();*/
     JPEGEncoder* je;
     je = new JPEGEncoder();
-    je->encode("test_32x32.yuv", 32, 32, 90);
+    je->encode("test_32x32.yuv", 32, 32, 30);
     delete je;
 }

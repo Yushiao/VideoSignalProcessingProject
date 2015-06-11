@@ -11,7 +11,7 @@ using namespace std;
 
 class Intra{
 public:
-    static void intra_process(BlockSet& image, BlockSet& quantized, Block_8x8& table);
+    static void intra_process(BlockSet& image, BlockSet& quantized, int qp);
     static void intra_prediction(BlockSet& image, Block_8x8& now, Block_8x8& residual, int mode);
     static void intra_recover(BlockSet& image, Block_8x8& now, Block_8x8& recover, int mode);
 
@@ -22,42 +22,39 @@ public:
     static void diagonal_down_right_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred);
 
     //....
+    static void ftq(Block_8x8& in, Block_8x8& out, int qp); // forward transform and quantize
+    static void iqt(Block_8x8& in, Block_8x8& out, int qp); // inverse quantize and transform
+
     static void rerange(Block_8x8& recover); // let recover block between 0~255
     static int minMSE(Block_8x8& now, Block_8x8* predArray);
 
     static const int count = 8;
     static const int size = 64;
-    static const int modeNum=3;
+    static const int modeNum = 3;
 };
 
-void Intra::intra_process(BlockSet& image, BlockSet& quantized, Block_8x8& table)
+void Intra::intra_process(BlockSet& image, BlockSet& quantized, int qp)
 {
     Block_8x8 canaidate[5];
-    Block_8x8 dct_canaidate[5];
     Block_8x8 quant_canaidate[5];
-    Block_8x8 iquant_canaidate[5];
     Block_8x8 idct_canaidate[5];
     Block_8x8 re_canaidate[5];
 
     for(int i=0; i<image.total; i++){
-    //for(int i=0; i<1; i++){
         for(int j=0; j<modeNum; j++){ /// test every prediction mode
 
             intra_prediction( image, image.block[i], canaidate[j], j);
 
-            Transform::transform(canaidate[j], dct_canaidate[j]);
-            Quantization::quantization(dct_canaidate[j], quant_canaidate[j], table);
-            Quantization::iquantization(quant_canaidate[j], iquant_canaidate[j], table);
-            Transform::itransform(iquant_canaidate[j], idct_canaidate[j]);
-//            cout << "after quantization[" <<i<< "]:\n";
-//            quant_canaidate[j].print();
-//            cout << "after itransform[" <<i<< "]:\n";
-//            idct_canaidate[j].print();
+            ftq(canaidate[j], quant_canaidate[j], qp);
+
+            iqt(quant_canaidate[j], idct_canaidate[j], qp);
+
             idct_canaidate[j].setneighbor(image.block[i]);
             intra_recover( image, idct_canaidate[j], re_canaidate[j], j);
+
             rerange(re_canaidate[j]);
 
-            cout << "original" << endl;
+            /*cout << "original" << endl;
             image.block[i].print();
             cout << "prediction result" <<endl;
             canaidate[j].print();
@@ -65,8 +62,7 @@ void Intra::intra_process(BlockSet& image, BlockSet& quantized, Block_8x8& table
             re_canaidate[j].print();
             cout << "quantized" << endl;
             quant_canaidate[j].print();
-
-            cout << "MSE" << Common::MSE( re_canaidate[j], image.block[i]) << endl;
+            cout << "MSE" << Common::MSE( re_canaidate[j], image.block[i]) << endl;*/
         }
         /// find minimum MSE and update image
         int best = minMSE(image.block[i], re_canaidate);
@@ -110,7 +106,6 @@ void Intra::vertical_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
         for(int i=0; i<size; i++){
             pred.data[i] = image.block[now.upper].data[i%count+(count-1)*count];
         }
-        image.block[now.upper].print();
     }
 }
 
@@ -188,6 +183,44 @@ void Intra::intra_recover(BlockSet& image, Block_8x8& now, Block_8x8& recover, i
             break;
     }
     recover = pred - now;
+}
+
+void Intra::ftq(Block_8x8& in, Block_8x8& out, int qp)
+{
+    double* dctin = new double[size];
+    double* dctout = new double[size];
+    for(int i=0; i<size; i++){
+        dctin[i] = in.data[i];
+    }
+    Transform::dct2d(dctin, dctout, 8);
+    // forward quantize
+    static const double qst[52] = {0.625, 0.6875, 0.8125, 0.875, 1, 1.125, 1.25, 1.375, 1.625, 1.75, 2, 2.25, 2.5, 2.75, 3.25, 3.5, 4, 4.5, 5, 5.5, 6.5, 7, 8, 9, 10, 11, 13, 14, 16, 18, 20, 22, 26, 28, 32, 36, 40, 44, 52, 56, 64, 72, 80, 88, 104, 112, 128, 144, 160, 176, 208, 224};
+    double qstep = qst[qp];
+    for(int i=0; i<size; i++){
+        dctout[i] = dctout[i]/qstep;
+        out.data[i] = round(dctout[i]);
+    }
+    delete []dctin;
+    delete []dctout;
+}
+
+void Intra::iqt(Block_8x8& in, Block_8x8& out, int qp)
+{
+    double* dctin = new double[size];
+    double* dctout = new double[size];
+    // inverse quantize
+    static const double qst[52] = {0.625, 0.6875, 0.8125, 0.875, 1, 1.125, 1.25, 1.375, 1.625, 1.75, 2, 2.25, 2.5, 2.75, 3.25, 3.5, 4, 4.5, 5, 5.5, 6.5, 7, 8, 9, 10, 11, 13, 14, 16, 18, 20, 22, 26, 28, 32, 36, 40, 44, 52, 56, 64, 72, 80, 88, 104, 112, 128, 144, 160, 176, 208, 224};
+    double qstep = qst[qp];
+
+    for(int i=0; i<size; i++){
+        dctin[i] = in.data[i]*qstep;
+    }
+    Transform::idct2d(dctin, dctout, 8);
+    for(int i=0; i<size; i++){
+        out.data[i] = round(dctout[i]);
+    }
+    delete []dctin;
+    delete []dctout;
 }
 
 void Intra::rerange(Block_8x8& recover)

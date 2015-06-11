@@ -12,48 +12,7 @@ public:
     static void dct2d(double* in, double* out, const int count);
     static void idct1d(double* in, double* out, const int count);
     static void idct2d(double* in, double* out, const int count);
-
-    static void transform(int* in, int* out, const int count);
-    static void transform(Block_8x8& in, Block_8x8& out);
-    static void itransform(int* in, int* out, const int count);
-    static void itransform(Block_8x8& in, Block_8x8& out);
 };
-
-void Transform::transform(int* in, int* out, const int count)
-{
-    double* dctin = new double[count*count];
-    double* dctout = new double[count*count];
-    for(int i=0; i<count*count; i++){
-        dctin[i] = in[i];
-    }
-    dct2d(dctin, dctout, count);
-    for(int i=0; i<count*count; i++){
-        out[i] = round(dctout[i]);
-    }
-}
-
-void Transform::transform(Block_8x8& in, Block_8x8& out)
-{
-    Transform::transform(in.data, out.data, 8);
-}
-
-void Transform::itransform(int* in, int* out, const int count)
-{
-    double* dctin = new double[count*count];
-    double* dctout = new double[count*count];
-    for(int i=0; i<count*count; i++){
-        dctin[i] = in[i];
-    }
-    idct2d(dctin, dctout, count);
-    for(int i=0; i<count*count; i++){
-        out[i] = round(dctout[i]);
-    }
-}
-
-void Transform::itransform(Block_8x8& in, Block_8x8& out)
-{
-    Transform::itransform(in.data, out.data, 8);
-}
 
 void Transform::dct1d(double* in, double* out, const int count)
 {
