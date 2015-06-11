@@ -9,6 +9,12 @@
 #include<vector>
 #include<string>
 #include<algorithm>
+
+#include"Block.h"
+#include"Common.h"
+#include"Transform.h"
+#include"Quantization.h"
+
 using namespace std;
 
 class JPEGDecoder{
@@ -18,13 +24,6 @@ public:
 
     void decode(const char* filename);
 
-    void initial(const char* filename);
-    void entropy();
-    void rasterscan();
-    void quantization();
-    void transform();
-    void partition();
-    void write();
 private:
     string name;
     int width;
@@ -34,20 +33,29 @@ private:
 
     static const int blockSize=8;
     int blockTotal;
-    int blockLumaTotal;
-    int blockChromaTotal;
-    int* block; /// every 8x8 block
+    // reconstructed block
+    BlockSet Y;
+    BlockSet U;
+    BlockSet V;
+
+    // quantization table
+    Block_8x8 lumaQTable;
+    Block_8x8 chromaQTable;
 
     unsigned char* image;
 
     /// sub function
-    int divCeil(int dividend, int divisor);
-    int divRound(int dividend, int divisor);
+    void initial(const char* filename);
+    void entropy();
+    void rasterscan();
+    void quantization();
+    void transform();
+    void partition();
+    void write();
     int bitstreamDecode(int type);
     int bitstreamNumber(int length);
     void zigzag(int* in, int* out, const int count);
-    void idct1d(double* in, double* out, const int count);
-    void idct2d(double* in, double* out, const int count);
+    void levelShiftBack(Block_8x8& in, Block_8x8& out);
 };
 
 JPEGDecoder::JPEGDecoder()
@@ -60,7 +68,6 @@ JPEGDecoder::JPEGDecoder()
 JPEGDecoder::~JPEGDecoder()
 {
     delete []image;
-    delete []block;
     bitstream.clear();
 }
 
@@ -71,7 +78,7 @@ void JPEGDecoder::decode(const char* filename)
     rasterscan();
     quantization();
     transform(); /// IDCT transform
-    partition(); /// de-block, restore image
+    partition(); /// restore image
     write();
 }
 
@@ -122,15 +129,17 @@ void JPEGDecoder::initial(const char* filename)
 
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
-    blockWidthLuma = divCeil(width, blockSize);
-    blockHeightLuma = divCeil(height, blockSize);
-    blockWidthChroma = divCeil(width/2, blockSize);
-    blockHeightChroma = divCeil(height/2, blockSize);
-    blockLumaTotal = blockWidthLuma*blockHeightLuma;
-    blockChromaTotal = 2*blockWidthChroma*blockHeightChroma;
+    blockWidthLuma = Common::divCeil(width, blockSize);
+    blockHeightLuma = Common::divCeil(height, blockSize);
+    blockWidthChroma = Common::divCeil(width/2, blockSize);
+    blockHeightChroma = Common::divCeil(height/2, blockSize);
     blockTotal = blockWidthLuma*blockHeightLuma+2*blockWidthChroma*blockHeightChroma;
 
-    block = new int[blockTotal*blockSize*blockSize];
+    Y.initial(blockWidthLuma*blockHeightLuma);
+    U.initial(blockWidthChroma*blockHeightChroma);
+    V.initial(blockWidthChroma*blockHeightChroma);
+
+    Quantization::createTable(quality, lumaQTable, chromaQTable);
 }
 
 void JPEGDecoder::entropy()
@@ -141,15 +150,14 @@ void JPEGDecoder::entropy()
     int blockTempSize;
 
     int blockNow=0;
-    int blockIndex;
 
     int index;
     int length;
     int num;
     int lastDC = 0;
     int runCount;
-    /// luma
-    while(blockNow < blockLumaTotal){
+    /// Y
+    while(blockNow < Y.total){
         blockTempIter = blockTemp;
         blockTempSize = 0;
         /// DC
@@ -183,15 +191,15 @@ void JPEGDecoder::entropy()
             blockTempIter++;
         }
 
-        blockIndex = blockNow * blockElement;
         for(int i=0; i<blockElement; i++){
-            block[blockIndex+i] = blockTemp[i];
+            Y.block[blockNow].data[i] = blockTemp[i];
         }
 
         blockNow++;
     }
-    /// chroma
-    while(blockNow < blockTotal){
+    /// U
+    blockNow = 0;
+    while(blockNow < U.total){
         blockTempIter = blockTemp;
         blockTempSize = 0;
         /// DC
@@ -225,9 +233,50 @@ void JPEGDecoder::entropy()
             blockTempIter++;
         }
 
-        blockIndex = blockNow * blockElement;
         for(int i=0; i<blockElement; i++){
-            block[blockIndex+i] = blockTemp[i];
+            U.block[blockNow].data[i] = blockTemp[i];
+        }
+
+        blockNow++;
+    }
+    /// V
+    blockNow = 0;
+    while(blockNow < V.total){
+        blockTempIter = blockTemp;
+        blockTempSize = 0;
+        /// DC
+        index = bitstreamDecode(1);
+        length = index;
+        num = bitstreamNumber(length) + lastDC; /// DPCM
+        lastDC = num;
+        *blockTempIter = num;
+        blockTempIter++;
+        blockTempSize++;
+        /// AC
+        while(1){
+            index = bitstreamDecode(3);
+            if(index==0) break;
+            runCount = index / 11;
+            length = index % 11;
+            num = bitstreamNumber(length);
+            /// fill runCount ZERO
+            for(int i=0; i<runCount; i++){
+                *blockTempIter = 0;
+                blockTempIter++;
+                blockTempSize++;
+            }
+            *blockTempIter = num;
+            blockTempIter++;
+            blockTempSize++;
+        }
+        /// fill ZERO behind EOB
+        for(int i=0; i<blockElement-blockTempSize; i++){
+            *blockTempIter = 0;
+            blockTempIter++;
+        }
+
+        for(int i=0; i<blockElement; i++){
+            V.block[blockNow].data[i] = blockTemp[i];
         }
 
         blockNow++;
@@ -244,116 +293,88 @@ void JPEGDecoder::rasterscan()
         in[i] = i;
     }
     zigzag(in, out, blockSize);
-    for(int b=0; b<blockTotal; b++){
-        int blockIndex = b*blockElement;
-        for(int i=0; i<blockElement; i++){
-            in[out[i]] = block[blockIndex+i];
+
+    for(int i=0; i<Y.total; i++){
+        for(int j=0; j<blockElement; j++){
+            in[out[j]] = Y.block[i].data[j];
         }
 
-        for(int i=0; i<blockElement; i++){
-            block[blockIndex+i] = in[i];
+        for(int j=0; j<blockElement; j++){
+            Y.block[i].data[j] = in[j];
         }
     }
+    for(int i=0; i<U.total; i++){
+        for(int j=0; j<blockElement; j++){
+            in[out[j]] = U.block[i].data[j];
+        }
+
+        for(int j=0; j<blockElement; j++){
+            U.block[i].data[j] = in[j];
+        }
+    }
+    for(int i=0; i<V.total; i++){
+        for(int j=0; j<blockElement; j++){
+            in[out[j]] = V.block[i].data[j];
+        }
+
+        for(int j=0; j<blockElement; j++){
+            V.block[i].data[j] = in[j];
+        }
+    }
+
     delete []in;
     delete []out;
 }
 
 void JPEGDecoder::quantization()
 {
-    static const int lumaTable[] = {
-      16, 11, 10, 16, 24, 40, 51, 61,
-      12, 12, 14, 19, 26, 58, 60, 55,
-      14, 13, 16, 24, 40, 57, 69, 56,
-      14, 17, 22, 29, 51, 87, 80, 62,
-      18, 22, 37, 56, 68, 109, 103, 77,
-      24, 35, 55, 64, 81, 104, 113, 92,
-      49, 64, 78, 87, 103, 121, 120, 101,
-      72, 92, 95, 98, 112, 100, 103, 99
-    };
-
-    static const int chromaTable[] = {
-      17, 18, 24, 47, 99, 99, 99, 99,
-      18, 21, 26, 66, 99, 99, 99, 99,
-      24, 26, 56, 99, 99, 99, 99, 99,
-      47, 66, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99
-    };
-
-    /// quality quantization table
-    int* lumaTableQuality = new int[blockSize*blockSize];
-    int* chromaTableQuality = new int[blockSize*blockSize];
-    int q = (quality<50) ? (5000/quality) : (200-2*quality);
-    for(int i=0; i<blockSize*blockSize; i++){
-        int lumaTemp = divRound(lumaTable[i]*q, 100);
-        int chromaTemp = divRound(chromaTable[i]*q, 100);
-        if(lumaTemp<=0) lumaTemp=1;
-        if(chromaTemp<=0) chromaTemp=1;
-        lumaTableQuality[i] = lumaTemp;
-        chromaTableQuality[i] = chromaTemp;
+    for(int i=0; i<Y.total; i++){
+        Quantization::iquantization(Y.block[i], Y.block[i], lumaQTable);
     }
-
-    /// quantize all blocks
-    int* blockIter = block;
-    for(int b=0; b<blockLumaTotal; b++){
-        for(int i=0; i<blockSize*blockSize; i++){
-            *blockIter = (*blockIter) * lumaTableQuality[i];
-            blockIter++;
-        }
+    for(int i=0; i<U.total; i++){
+        Quantization::iquantization(U.block[i], U.block[i], chromaQTable);
     }
-    for(int b=0; b<blockChromaTotal; b++){
-        for(int i=0; i<blockSize*blockSize; i++){
-            *blockIter = (*blockIter) * chromaTableQuality[i];
-            blockIter++;
-        }
+    for(int i=0; i<V.total; i++){
+        Quantization::iquantization(V.block[i], V.block[i], chromaQTable);
     }
-    delete []lumaTableQuality;
-    delete []chromaTableQuality;
 }
 
 void JPEGDecoder::transform()
 {
     /// IDCT transform to all blocks
-    double* in = new double[blockSize*blockSize];
-    double* out = new double[blockSize*blockSize];
-    for(int b=0; b<blockTotal; b++){
-        int blockIndex = b*blockSize*blockSize;
-        for(int i=0; i<blockSize*blockSize; i++){
-            in[i] = block[blockIndex+i];
-        }
-        idct2d(in, out, blockSize);
-        for(int i=0; i<blockSize*blockSize; i++){
-            block[blockIndex+i] = round(out[i]);
-        }
+    for(int i=0; i<Y.total; i++){
+        Transform::itransform(Y.block[i], Y.block[i]);
     }
-    delete []in;
-    delete []out;
+    for(int i=0; i<U.total; i++){
+        Transform::itransform(U.block[i], U.block[i]);
+    }
+    for(int i=0; i<V.total; i++){
+        Transform::itransform(V.block[i], V.block[i]);
+    }
 }
 
 void JPEGDecoder::partition()
 {
-    int *blockIter;
     /// level shift 2^(Bits-1)
-    blockIter = block;
-    for(int i=0; i<blockTotal*blockSize*blockSize; i++){
-        *blockIter = *blockIter+128;
-        if(*blockIter < 0) *blockIter = 0;
-        if(*blockIter > 255) *blockIter = 255;
-        blockIter++;
+    for(int i=0; i<Y.total; i++){
+        levelShiftBack(Y.block[i], Y.block[i]);
+    }
+    for(int i=0; i<U.total; i++){
+        levelShiftBack(U.block[i], U.block[i]);
+    }
+    for(int i=0; i<V.total; i++){
+        levelShiftBack(V.block[i], V.block[i]);
     }
 
     /// YCbCr 4:2:0
     int blockWidthLuma, blockHeightLuma;
     int blockWidthChroma, blockHeightChroma;
-    blockWidthLuma = divCeil(width, blockSize);
-    blockHeightLuma = divCeil(height, blockSize);
-    blockWidthChroma = divCeil(width/2, blockSize);
-    blockHeightChroma = divCeil(height/2, blockSize);
+    blockWidthLuma = Common::divCeil(width, blockSize);
+    blockHeightLuma = Common::divCeil(height, blockSize);
+    blockWidthChroma = Common::divCeil(width/2, blockSize);
+    blockHeightChroma = Common::divCeil(height/2, blockSize);
 
     /// set data to image from block
-    blockIter = block;
     for(int m=0; m<blockHeightLuma; m++){ /// loop all luma blocks
         for(int n=0; n<blockWidthLuma; n++){
             for(int i=0; i<blockSize; i++){ /// loop 8x8 block
@@ -361,9 +382,8 @@ void JPEGDecoder::partition()
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     if(ii<height && ij<width){
-                        image[ii*width+ij] = *blockIter;
+                        image[ii*width+ij] = Y.block[m*blockWidthLuma+n].data[i*blockSize+j];
                     }
-                    blockIter++;
                 }
             }
         }
@@ -375,9 +395,8 @@ void JPEGDecoder::partition()
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     if(ii<height/2 && ij<width/2){
-                        image[height*width+ii*width/2+ij] = *blockIter;
+                        image[height*width+ii*width/2+ij] = U.block[m*blockWidthChroma+n].data[i*blockSize+j];
                     }
-                    blockIter++;
                 }
             }
         }
@@ -389,9 +408,8 @@ void JPEGDecoder::partition()
                     int ii = m*blockSize+i;
                     int ij = n*blockSize+j;
                     if(ii<height/2 && ij<width/2){
-                        image[height*width*5/4+ii*width/2+ij] = *blockIter;
+                        image[height*width*5/4+ii*width/2+ij] = V.block[m*blockWidthChroma+n].data[i*blockSize+j];
                     }
-                    blockIter++;
                 }
             }
         }
@@ -406,22 +424,6 @@ void JPEGDecoder::write()
     int size = width*height*3/2; /// YCbCr 4:2:0
     fwrite(image, sizeof(char), size, file);
     fclose(file);
-}
-
-int JPEGDecoder::divCeil(int dividend, int divisor)
-{
-    /// dividend and divisor must be positive
-    return ((dividend-1) / divisor) + 1;
-}
-
-int JPEGDecoder::divRound(int dividend, int divisor)
-{
-    /// divisor must be positive
-    if(dividend < 0){
-        return -1*(-1*dividend + (divisor/2))/divisor;
-    }else{
-        return (dividend + (divisor/2))/divisor;
-    }
 }
 
 int JPEGDecoder::bitstreamDecode(int type)
@@ -533,53 +535,13 @@ void JPEGDecoder::zigzag(int* in, int* out, const int count)
     }
 }
 
-void JPEGDecoder::idct1d(double* in, double* out, const int count){
-    double* temp = new double[count];
-    for(int i=0; i<count; i++){
-        if(i==0) temp[i] = in[i] * sqrt(1.0/count);
-        else temp[i] = in[i] * sqrt(2.0/count);
+void JPEGDecoder::levelShiftBack(Block_8x8& in, Block_8x8& out)
+{
+    for(int i=0; i<64; i++){
+        out.data[i] = in.data[i] + 128;
+        if(out.data[i]<0) out.data[i] = 0;
+        if(out.data[i]>255) out.data[i] = 255;
     }
-    for(int n=0; n<count; n++){
-        double o = 0.0;
-        for(int k=0; k<count; k++){
-            o += temp[k]*cos(M_PI*(2*n+1)*k/(2*count));
-        }
-        out[n] = o;
-    }
-    delete []temp;
-}
-
-void JPEGDecoder::idct2d(double* in, double* out, const int count){
-    double* in1d = new double[count];
-    double* out1d = new double[count];
-	double* temp = new double[count*count];
-
-	/* transform rows */
-	for(int j=0; j<count; j++){
-		for(int i=0; i<count; i++){
-			in1d[i] = in[j*count+i];
-		}
-		idct1d(in1d, out1d, count);
-		for(int i=0; i<count; i++){
-            temp[j*count+i] = out1d[i];
-		}
-	}
-
-	/* transform columns */
-	for(int j=0; j<count; j++)
-	{
-		for(int i=0; i<count; i++){
-			in1d[i] = temp[i*count+j];
-		}
-		idct1d(in1d, out1d, count);
-		for(int i=0; i<count; i++){
-            out[i*count+j] = out1d[i];
-		}
-	}
-
-	delete []in1d;
-	delete []out1d;
-	delete []temp;
 }
 
 int main(int argc, char* argv[])
@@ -592,5 +554,8 @@ int main(int argc, char* argv[])
         delete jd;
     }
     return 0;
-    //jd->decode("1_1536x1024_90.bin");
+    /*JPEGDecoder* jd;
+    jd = new JPEGDecoder();
+    jd->decode("5_1000x1504_50.bin");
+    delete jd;*/
 }
