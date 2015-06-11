@@ -156,6 +156,7 @@ void JPEGEncoder::partition()
                     Y.block[m*blockWidthLuma+n].data[i*blockSize+j] = (ii<height && ij<width) ? image[ii*width+ij] : 255;
                     Y.block[m*blockWidthLuma+n].upper = (m==0) ? -1 : (m-1)*blockWidthLuma+n;
                     Y.block[m*blockWidthLuma+n].left = (n==0) ? -1 : m*blockWidthLuma+n-1;
+                    Y.block[m*blockWidthLuma+n].right = (n==blockWidthLuma-1) ? -1 : m*blockWidthLuma+n+1;
                 }
             }
         }
@@ -169,6 +170,7 @@ void JPEGEncoder::partition()
                     U.block[m*blockWidthChroma+n].data[i*blockSize+j] = (ii<height/2 && ij<width/2) ? image[height*width+ii*width/2+ij] : 255;
                     U.block[m*blockWidthChroma+n].upper = (m==0) ? -1 : (m-1)*blockWidthChroma+n;
                     U.block[m*blockWidthChroma+n].left = (n==0) ? -1 : m*blockWidthChroma+n-1;
+                    U.block[m*blockWidthChroma+n].right = (n==blockWidthChroma-1) ? -1 : m*blockWidthChroma+n+1;
                 }
             }
         }
@@ -182,6 +184,7 @@ void JPEGEncoder::partition()
                     V.block[m*blockWidthChroma+n].data[i*blockSize+j] = (ii<height/2 && ij<width/2) ? image[height*width*5/4+ii*width/2+ij] : 255;
                     V.block[m*blockWidthChroma+n].upper = (m==0) ? -1 : (m-1)*blockWidthChroma+n;
                     V.block[m*blockWidthChroma+n].left = (n==0) ? -1 : m*blockWidthChroma+n-1;
+                    V.block[m*blockWidthChroma+n].right = (n==blockWidthChroma-1) ? -1 : m*blockWidthChroma+n+1;
                 }
             }
         }
