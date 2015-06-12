@@ -13,8 +13,8 @@ public:
     static void entropyEncodeChroma(Block_8x8& in, int* lastDC, vector<bool>& bits);
 
     static void entropyDecode(vector<bool>& bits, BlockSet& imageYq, BlockSet& imageUq, BlockSet& imageVq);
-    static void entropyDecodeLuma(vector<bool>& bits, BlockSet& imageYq);
-    static void entropyDecodeChroma(vector<bool>& bits, BlockSet& imageUV);
+    static void entropyDecodeLuma(vector<bool>& bits, BlockSet& imageYq, int* lastDC);
+    static void entropyDecodeChroma(vector<bool>& bits, BlockSet& imageUV, int* lastDC);
 
     static void runLengthCoding(Block_8x8& in, int* run, int* number);
     static int findLastNonZero(Block_8x8& in);
@@ -154,12 +154,15 @@ void Entropy::entropyEncodeChroma(Block_8x8& in, int* lastDC, vector<bool>& bits
 
 void Entropy::entropyDecode(vector<bool>& bits, BlockSet& imageYq, BlockSet& imageUq, BlockSet& imageVq)
 {
-    entropyDecodeLuma(bits, imageYq);
-    entropyDecodeChroma(bits, imageUq);
-    entropyDecodeChroma(bits, imageVq);
+    int* last = new int;
+    *last = 0;
+    entropyDecodeLuma(bits, imageYq, last);
+    entropyDecodeChroma(bits, imageUq, last);
+    entropyDecodeChroma(bits, imageVq, last);
+    delete last;
 }
 
-void Entropy::entropyDecodeLuma(vector<bool>& bits, BlockSet& imageYq)
+void Entropy::entropyDecodeLuma(vector<bool>& bits, BlockSet& imageYq, int* lastDC)
 {
     int* blockTemp = new int[size];
     int* blockTempIter;
@@ -170,7 +173,6 @@ void Entropy::entropyDecodeLuma(vector<bool>& bits, BlockSet& imageYq)
     int index;
     int length;
     int num;
-    int lastDC = 0;
     int runCount;
     /// Y
     while(blockNow < imageYq.total){
@@ -188,8 +190,8 @@ void Entropy::entropyDecodeLuma(vector<bool>& bits, BlockSet& imageYq)
         /// DC
         index = bitstreamDecode(bits, 0);
         length = index;
-        num = bitstreamNumber(bits, length) + lastDC; /// DPCM
-        lastDC = num;
+        num = bitstreamNumber(bits, length) + *lastDC; /// DPCM
+        *lastDC = num;
         *blockTempIter = num;
         blockTempIter++;
         blockTempSize++;
@@ -225,7 +227,7 @@ void Entropy::entropyDecodeLuma(vector<bool>& bits, BlockSet& imageYq)
     delete []blockTemp;
 }
 
-void Entropy::entropyDecodeChroma(vector<bool>& bits, BlockSet& imageUV)
+void Entropy::entropyDecodeChroma(vector<bool>& bits, BlockSet& imageUV, int* lastDC)
 {
     int* blockTemp = new int[size];
     int* blockTempIter;
@@ -236,7 +238,6 @@ void Entropy::entropyDecodeChroma(vector<bool>& bits, BlockSet& imageUV)
     int index;
     int length;
     int num;
-    int lastDC = 0;
     int runCount;
     /// U or V
     blockNow = 0;
@@ -255,8 +256,8 @@ void Entropy::entropyDecodeChroma(vector<bool>& bits, BlockSet& imageUV)
         /// DC
         index = bitstreamDecode(bits, 1);
         length = index;
-        num = bitstreamNumber(bits, length) + lastDC; /// DPCM
-        lastDC = num;
+        num = bitstreamNumber(bits, length) + *lastDC; /// DPCM
+        *lastDC = num;
         *blockTempIter = num;
         blockTempIter++;
         blockTempSize++;
