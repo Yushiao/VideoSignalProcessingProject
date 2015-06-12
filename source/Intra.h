@@ -15,6 +15,8 @@ public:
     static void intra_prediction(BlockSet& image, Block_8x8& now, Block_8x8& residual, int mode);
     static void intra_recover(BlockSet& image, Block_8x8& now, Block_8x8& recover, int mode);
 
+    static void intra_iprocess(BlockSet& quantized, BlockSet& image, int qp);
+
     static void vertical_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred);
     static void horizontal_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred);
     static void dc_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred);
@@ -120,6 +122,23 @@ void Intra::intra_recover(BlockSet& image, Block_8x8& now, Block_8x8& recover, i
             break;
     }
     recover = pred - now;
+}
+
+void Intra::intra_iprocess(BlockSet& quantized, BlockSet& image, int qp)
+{
+    Block_8x8 idct;
+    Block_8x8 reconstruct;
+
+    for(int i=0; i<quantized.total; i++){
+        iqt(quantized.block[i], idct, qp);
+
+        idct.setneighbor(quantized.block[i]);
+        intra_recover( image, idct, reconstruct, quantized.block[i].mode);
+
+        rerange(reconstruct);
+
+        image.block[i] = reconstruct;
+    }
 }
 
 void Intra::vertical_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)

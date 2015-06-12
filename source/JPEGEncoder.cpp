@@ -83,7 +83,7 @@ void JPEGEncoder::encode(const char* filename, int w, int h, int q)
     zigzag();
     entropy();
     cout << bitstream.size() << endl;
-//    write();
+    write();
 }
 
 void JPEGEncoder::initial(const char* filename, int w, int h, int q)
@@ -99,6 +99,9 @@ void JPEGEncoder::initial(const char* filename, int w, int h, int q)
     /// read image
     FILE *file;
     file = fopen(filename, "rb");
+    if(file==NULL){
+        cout << "Open File Failed: " << filename << endl;
+    }
     int size = width*height*3/2; /// YCbCr 4:2:0
     image = new unsigned char[size];
     fread(image, sizeof(char), size, file);
@@ -237,7 +240,7 @@ void JPEGEncoder::entropy()
 
 int main(int argc, char* argv[])
 {
-/*    JPEGEncoder* je;
+    JPEGEncoder* je;
     string command;
     string file;
     string temp;
@@ -292,11 +295,10 @@ int main(int argc, char* argv[])
         je->encode(file.c_str(), width, height, quality);
         delete je;
     }
-    ftxt.close();*/
-    JPEGEncoder* je;
+    ftxt.close();
+    /*JPEGEncoder* je;
     je = new JPEGEncoder();
     //je->encode("test_32x32.yuv", 32, 32, 30);
-    je->encode("2_1024x768.yuv", 1024, 768, 30);
-
-    delete je;
+    je->encode("image\\2_1024x768.yuv", 1024, 768, 30);
+    delete je;*/
 }
