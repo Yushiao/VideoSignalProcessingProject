@@ -30,7 +30,7 @@ public:
 
     static const int count = 8;
     static const int size = 64;
-    static const int modeNum = 3;
+    static const int modeNum = 5;
 };
 
 void Intra::intra_process(BlockSet& image, BlockSet& quantized, int qp)
@@ -77,24 +77,49 @@ void Intra::intra_prediction(BlockSet& image, Block_8x8& now, Block_8x8& residua
     Block_8x8 pred;
     switch(mode){
         case 0:
-            vertical_pred( image, now, pred);
+            vertical_pred(image, now, pred);
             break;
         case 1:
-            horizontal_pred( image, now, pred);
+            horizontal_pred(image, now, pred);
             break;
         case 2:
             dc_pred(image, now, pred);
             break;
         case 3:
-            //horizontal_pred
+            diagonal_down_left_pred(image, now, pred);
             break;
         case 4:
-            //horizontal_pred
+            diagonal_down_right_pred(image, now, pred);
             break;
         default :
             break;
     }
     residual = pred - now;
+}
+
+void Intra::intra_recover(BlockSet& image, Block_8x8& now, Block_8x8& recover, int mode)
+{
+    Block_8x8 pred;
+    switch(mode){
+        case 0:
+            vertical_pred(image, now, pred);
+            break;
+        case 1:
+            horizontal_pred(image, now, pred);
+            break;
+        case 2:
+            dc_pred(image, now, pred);
+            break;
+        case 3:
+            diagonal_down_left_pred(image, now, pred);
+            break;
+        case 4:
+            diagonal_down_right_pred(image, now, pred);
+            break;
+        default :
+            break;
+    }
+    recover = pred - now;
 }
 
 void Intra::vertical_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
@@ -196,32 +221,43 @@ void Intra::diagonal_down_left_pred(BlockSet& image, Block_8x8& now, Block_8x8& 
 
 void Intra::diagonal_down_right_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
 {
+    int upper_ref[count];
+    int left_ref[count];
 
-}
-
-void Intra::intra_recover(BlockSet& image, Block_8x8& now, Block_8x8& recover, int mode)
-{
-    Block_8x8 pred;
-    switch(mode){
-        case 0:
-            vertical_pred(image, now, pred);
-            break;
-        case 1:
-            horizontal_pred(image, now, pred);
-            break;
-        case 2:
-            dc_pred(image, now, pred);
-            break;
-        case 3:
-            //horizontal_pred
-            break;
-        case 4:
-            //horizontal_pred
-            break;
-        default :
-            break;
+    if(now.left!=-1){
+        for(int i=0; i<count; i++){ // left
+            left_ref[i] = image.block[now.left].data[i*count+count-1];
+        }
     }
-    recover = pred - now;
+    else{
+        for(int i=0; i<count; i++){ // left
+            left_ref[i] = 128;
+        }
+    }
+    if(now.upper!=-1){
+        for(int i=0; i<count; i++){ // upper
+            upper_ref[i] = image.block[now.upper].data[(count-1)*count+i];
+        }
+    }
+    else{
+        for(int i=0; i<count; i++){ // upper
+            upper_ref[i] = 128;
+        }
+    }
+
+    for(int i=0; i<count; i++){
+        for(int j=0; j<count; j++){
+            if(i<j){ // upper-right plane
+                pred.data[i*count+j] = (upper_ref[j-i-1]+upper_ref[j-i])/2;
+            }
+            else if(i>j){ // bottom-left plane
+                pred.data[i*count+j] = (left_ref[i-j-1]+left_ref[i-j])/2;
+            }
+            else{ // i=j, diagonal
+                pred.data[i*count+j] = (upper_ref[0]+left_ref[0])/2;
+            }
+        }
+    }
 }
 
 void Intra::ftq(Block_8x8& in, Block_8x8& out, int qp)
