@@ -152,7 +152,41 @@ void Intra::dc_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
 
 void Intra::diagonal_down_left_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
 {
+    int ref[2*count];
 
+    if( now.upper!=-1 && now.right!= -1 ){
+        for(int i=0; i<count; i++){
+            ref[i] = image.block[now.upper].data[count*(count-1)+i];
+        }
+        for(int i=0; i<count; i++){
+            ref[i+count] = image.block[now.right].data[count*(count-1)+i];
+        }
+    }
+    else if(  now.upper==-1 && now.right!= -1 ){
+        for(int i=0; i<count; i++){
+            ref[i] = 128;
+        }
+        for(int i=0; i<count; i++){
+            ref[i+count] = image.block[now.right].data[count*(count-1)+i];
+        }
+    }
+    else if(  now.upper!=-1 && now.right== -1 ){
+        for(int i=0; i<count; i++){
+            ref[i] = image.block[now.upper].data[count*(count-1)+i];
+        }
+        for(int i=0; i<count; i++){
+            ref[i+count] = 128;
+        }
+    }
+    else{
+        for(int i=0; i<2*count; i++){
+            ref[i] = 128;
+        }
+    }
+
+    for(int i=0; i<count*count; i++){
+        pred.data[i] = (ref[i/count+i%count]+ref[i/count+i%count+1])/2;
+    }
 }
 
 void Intra::diagonal_down_right_pred(BlockSet& image, Block_8x8& now, Block_8x8& pred)
